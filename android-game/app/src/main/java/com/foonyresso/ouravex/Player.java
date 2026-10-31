@@ -33,6 +33,9 @@ final class Player {
     final int[] skLvl = new int[4];
     final float[] skCd = new float[4];
     boolean transformed;
+    float rage, rageForm;
+    final int[] slotSkill = {-1, -1, -1, -1};
+    Enemy dualTgt;
 
     int st;
     float stT;
@@ -73,6 +76,8 @@ final class Player {
         for (int i = 0; i < items.length; i++) items[i] = 0;
         for (int i = 0; i < 4; i++) { unlocked[i] = false; skLvl[i] = 0; skCd[i] = 0; bufSkill[i] = 0; }
         transformed = false;
+        rage = 0f; rageForm = 0f; dualTgt = null;
+        for (int i = 0; i < 4; i++) slotSkill[i] = -1;
         hp = maxHp();
         ki = maxKi() * 0.4f;
         st = ST_FREE; stT = 0; invuln = 0; dashCharge = dashMax; combo = 0; chain = 0; chainT = 0;
@@ -87,12 +92,13 @@ final class Player {
     float dmgMul() {
         float m = 1f + str * 0.05f + items[0] * 0.05f + dmgCard;
         if (transformed) m *= 1.4f;
+        if (rageForm > 0f) m *= 1.4f;
         m *= 1f + Math.min(0.3f, combo * 0.01f);
         return m;
     }
     float defense() { return vit * 1.5f + items[7] * 8f; }
-    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f); }
-    float aspd() { return (1f + agi * 0.015f + items[3] * 0.03f) * (transformed ? 1.25f : 1f); }
+    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.6f : 1f); }
+    float aspd() { return (1f + agi * 0.015f + items[3] * 0.03f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.5f : 1f); }
     float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f; }
     float critMul() { return 1.6f + items[8] * 0.08f; }
     float dropMul() { return 1f + effLuk() * 0.03f; }
@@ -104,7 +110,39 @@ final class Player {
         if (transformed) c *= 0.6f;
         return Math.max(0.15f, c);
     }
-    float dashDist() { return 420f * (1f + items[10] * 0.06f); }
+    float dashDist() { return 420f * (1f + items[10] * 0.06f) * (rageForm > 0f ? 1.3f : 1f); }
+
+    void unlockSkill(int i) {
+        if (unlocked[i]) return;
+        unlocked[i] = true;
+        for (int k = 0; k < 4; k++) if (slotSkill[k] < 0) { slotSkill[k] = i; break; }
+    }
+
+    void startRageForm() {
+        rage = 0f; rageForm = 16f;
+        transformed = true;
+        st = ST_FREE; stT = 0;
+        g.audio.setCharging(false, 0f);
+        g.audio.play(Audio.TRANSFORM, 1f);
+        g.slowmo(0.4f, 0.8f);
+        g.fx.screenFlash(Data.GOLD, 0.55f);
+        g.fx.explosion(x, y - 40f, 150f, Data.GOLD);
+        g.fx.ring(x, y - 40f, 20f, 260f, 0.5f, 0xFFFFFFFF);
+        g.shake(0.6f);
+        g.flashBanner("ЛЮТЬ!", Data.GOLD);
+    }
+
+    private void dualAssist() {
+        Enemy t = g.nearest(x, y, dashDist() + 120f, 0);
+        if (t == null) return;
+        float dx = t.x - x;
+        int dir = dx >= 0f ? 1 : -1;
+        float cy = t.y - t.h * 0.5f;
+        if (Math.abs(dx) > t.w + 110f && dashCharge >= 1f && Math.abs(cy - (y - 40f)) < 130f) {
+            if (tryDash(dir)) return;
+        }
+        face = dir;
+    }
     float xpNeed() { return 40f + level * 28f; }
     float skillCost(int i) {
         float base = Data.SKILL_COST[cls][i];
@@ -171,11 +209,17 @@ final class Player {
 
         hp = Math.min(maxHp(), hp + hpRegen() * dt);
         if (st != ST_CHARGE) ki = Math.min(maxKi(), ki + kiRegen() * dt);
-        if (transformed) {
+        if (rageForm > 0f) {
+            rageForm -= dt;
+            if (rageForm <= 0f) { rageForm = 0f; Skills.endTransform(this); }
+        }
+        if (transformed && rageForm <= 0f) {
             ki -= 4.5f * dt;
             if (ki <= 0f) { ki = 0f; Skills.endTransform(this); }
+        }
+        if (transformed) {
             auraT -= dt;
-            if (auraT <= 0f) { auraT = 0.03f; g.fx.aura(x, y, Data.GOLD, 1.6f); }
+            if (auraT <= 0f) { auraT = 0.03f; g.fx.aura(x, y, Data.GOLD, rageForm > 0f ? 2.2f : 1.6f); }
         }
 
         blendK = 18f;
@@ -243,6 +287,7 @@ final class Player {
         int dir = moveDir();
 
         if (bufDash > 0f && tryDash(bufDashDir)) { bufDash = 0f; return; }
+        if (c.dualAtk) dualAssist();
         for (int i = 0; i < 4; i++) {
             if (bufSkill[i] > 0f && Skills.tryCast(this, i)) { bufSkill[i] = 0f; return; }
         }
@@ -290,7 +335,7 @@ final class Player {
 
     boolean tryJump(int dir) {
         if (ground || coyote > 0f) {
-            vy = -900f * (transformed ? 1.05f : 1f);
+            vy = -900f * (transformed ? 1.05f : 1f) * (rageForm > 0f ? 1.18f : 1f);
             vx = dir * moveSpeed() * 1.05f;
             if (dir != 0) face = dir;
             ground = false; coyote = 0f; lastJumpT = 0f;
@@ -405,6 +450,10 @@ final class Player {
         vx = approach(vx, 0f, 4000f * dt);
         blendK = 30f;
         ki = Math.min(maxKi(), ki + chargeRate() * dt);
+        if (rageForm <= 0f) {
+            if (rage >= 100f) { startRageForm(); return; }
+            rage = Math.max(0f, rage - 4f * dt);
+        }
         float lv = ki / maxKi();
         g.audio.setCharging(true, lv);
         auraT -= dt;

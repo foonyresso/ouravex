@@ -13,6 +13,7 @@ import android.view.View;
 public class GameView extends View {
     private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4;
     private float introT;
+    private int pickSlot = -1;
     private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, B_ATK2 = 9, NB = 10;
 
     private final Audio audio = new Audio();
@@ -112,7 +113,7 @@ public class GameView extends View {
         for (int i = 0; i < NB; i++) { bDown[i] = false; bSwiped[i] = false; }
         crouchLatch = false;
         Game.Ctl c = game.ctl;
-        c.left = c.right = c.chargeHeld = c.crouchHeld = c.atkHeld = false;
+        c.left = c.right = c.chargeHeld = c.crouchHeld = c.atkHeld = c.dualAtk = false;
         c.clearEvents();
     }
 
@@ -143,7 +144,7 @@ public class GameView extends View {
         int best = -1;
         float bd = 1e9f;
         for (int i = 0; i < NB; i++) {
-            if (i >= B_SK && i < B_SK + 4 && !game.p.unlocked[i - B_SK]) continue;
+            if (i >= B_SK && i < B_SK + 4 && game.p.slotSkill[i - B_SK] < 0) continue;
             if (i == B_INT && interactLabel == null) continue;
             float dx = x - bx[i], dy = y - by[i];
             float d = (float) Math.sqrt(dx * dx + dy * dy);
@@ -196,7 +197,8 @@ public class GameView extends View {
         } else if (b == B_ATK || b == B_ATK2) {
             c.atkReq = true;
         } else if (b >= B_SK && b < B_SK + 4) {
-            c.skillReq[b - B_SK] = true;
+            int sk = game.p.slotSkill[b - B_SK];
+            if (sk >= 0) c.skillReq[sk] = true;
         } else if (b == B_INT) {
             c.interactReq = true;
         } else if (b == B_PAUSE) {
@@ -267,10 +269,25 @@ public class GameView extends View {
             }
             if (in(x, y, W / 2f, 332 * s, 240 * s, 48 * s)) startRun();
         } else if (screen == PAUSE) {
-            if (in(x, y, W / 2f - 130 * s, 340 * s, 220 * s, 46 * s)) {
+            for (int k = 0; k < 4; k++) {
+                if (in(x, y, W / 2f + (k - 1.5f) * 78 * s, 318 * s, 72 * s, 26 * s)) {
+                    if (pickSlot < 0) pickSlot = k;
+                    else {
+                        int t = game.p.slotSkill[pickSlot];
+                        game.p.slotSkill[pickSlot] = game.p.slotSkill[k];
+                        game.p.slotSkill[k] = t;
+                        pickSlot = -1;
+                    }
+                    audio.play(Audio.CLICK, 0.6f);
+                    return;
+                }
+            }
+            if (in(x, y, W / 2f - 130 * s, 350 * s, 220 * s, 40 * s)) {
+                pickSlot = -1;
                 screen = PLAY; audio.setDuck(false); audio.play(Audio.CLICK, 0.7f);
-            } else if (in(x, y, W / 2f + 130 * s, 340 * s, 220 * s, 46 * s)) {
+            } else if (in(x, y, W / 2f + 130 * s, 350 * s, 220 * s, 40 * s)) {
                 audio.play(Audio.CLICK, 0.7f);
+                pickSlot = -1;
                 toTitle();
             }
         } else if (screen == INTRO) {
@@ -307,6 +324,7 @@ public class GameView extends View {
         lastNanos = now;
         if (dt > 0.05f) dt = 0.05f;
         uiT += dt;
+        frameDt = dt;
         if (W == 0) { postInvalidateOnAnimation(); return; }
 
         interactLabel = screen == PLAY ? game.interactLabel() : null;
@@ -320,6 +338,7 @@ public class GameView extends View {
                 k.crouchHeld = crouchLatch;
                 k.chargeHeld = bDown[B_L] && bDown[B_R] && !bSwiped[B_L] && !bSwiped[B_R] && !crouchLatch;
                 k.atkHeld = bDown[B_ATK] || bDown[B_ATK2];
+                k.dualAtk = bDown[B_ATK] && bDown[B_ATK2];
                 game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM);
                 game.update(dt);
                 if (game.levelUpPending) lvlT = 0f;
@@ -510,6 +529,69 @@ public class GameView extends View {
         pt.setTextAlign(Paint.Align.LEFT);
     }
 
+    private final float[] bvLast = new float[4], bvLo = new float[4], bvHi = new float[4], bvGlow = new float[4];
+    private final boolean[] bvUp = new boolean[4], bvInit = new boolean[4];
+    private float frameDt = 0.016f;
+
+    /** Смужка з розжареним шматком: приріст/втрата спалахує й гасне. */
+    private void barG(int id, Canvas c, float x, float y, float w, float h, float frac, int col) {
+        frac = Math.max(0f, Math.min(1f, frac));
+        if (!bvInit[id]) { bvInit[id] = true; bvLast[id] = frac; }
+        float last = bvLast[id];
+        if (frac < last - 0.0004f) {
+            bvHi[id] = (bvGlow[id] > 0.05f && !bvUp[id]) ? Math.max(bvHi[id], last) : last;
+            bvLo[id] = frac; bvUp[id] = false; bvGlow[id] = 1f;
+        } else if (frac > last + 0.0004f) {
+            bvLo[id] = (bvGlow[id] > 0.05f && bvUp[id]) ? bvLo[id] : last;
+            bvHi[id] = frac; bvUp[id] = true; bvGlow[id] = 1f;
+        }
+        bvLast[id] = frac;
+        bvGlow[id] = Math.max(0f, bvGlow[id] - frameDt * 1.5f);
+        float gl = bvGlow[id];
+        float rr = h / 2f;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0x99000000);
+        rf.set(x, y, x + w, y + h);
+        c.drawRoundRect(rf, rr, rr, pt);
+        if (gl > 0.01f && !bvUp[id]) {
+            // втрата: розжарений шматок, що гасне
+            float x0 = x + w * frac, x1 = x + w * Math.max(frac, bvHi[id]);
+            pt.setColor(Render.a(0xFFFF6A2A, 0.35f * gl));
+            rf.set(x0 - 2 * S, y - 3 * S, x1 + 2 * S, y + h + 3 * S);
+            c.drawRoundRect(rf, rr, rr, pt);
+            pt.setColor(Render.a(0xFFFFE9B0, gl));
+            rf.set(x0, y, x1, y + h);
+            c.drawRoundRect(rf, rr, rr, pt);
+        }
+        if (frac > 0f) {
+            float lo = (gl > 0.01f && bvUp[id]) ? Math.min(frac, bvLo[id]) : frac;
+            pt.setColor(Render.a(col, 0.35f));
+            rf.set(x - 1.5f * S, y - 1.5f * S, x + w * lo + 1.5f * S, y + h + 1.5f * S);
+            c.drawRoundRect(rf, rr, rr, pt);
+            pt.setColor(col);
+            rf.set(x, y, x + w * lo, y + h);
+            c.drawRoundRect(rf, rr, rr, pt);
+            if (lo < frac) {
+                // приріст: нова ділянка розжарена, потім остигає до кольору смужки
+                float x0 = x + w * lo, x1 = x + w * frac;
+                pt.setColor(Render.a(col, 0.4f * gl));
+                rf.set(x0 - 3 * S, y - 3 * S, x1 + 3 * S, y + h + 3 * S);
+                c.drawRoundRect(rf, rr, rr, pt);
+                int mix = Render.a(0xFFFFFFFF, gl);
+                pt.setColor(col);
+                rf.set(x0, y, x1, y + h);
+                c.drawRoundRect(rf, rr, rr, pt);
+                pt.setColor(mix);
+                c.drawRoundRect(rf, rr, rr, pt);
+            }
+        }
+        pt.setStyle(Paint.Style.STROKE);
+        pt.setStrokeWidth(1.2f * S);
+        pt.setColor(0x55FFFFFF);
+        rf.set(x, y, x + w, y + h);
+        c.drawRoundRect(rf, rr, rr, pt);
+    }
+
     private void bar(Canvas c, float x, float y, float w, float h, float frac, int col) {
         frac = Math.max(0f, Math.min(1f, frac));
         pt.setStyle(Paint.Style.FILL);
@@ -636,10 +718,13 @@ public class GameView extends View {
             c.drawRect(0, 0, W, H, pt);
         }
         // bars
-        bar(c, 14 * s, 12 * s, 200 * s, 13 * s, hpF, hpF < 0.3f ? 0xFFFF4D6D : 0xFF4DFF88);
+        barG(0, c, 14 * s, 12 * s, 200 * s, 13 * s, hpF, hpF < 0.3f ? 0xFFFF4D6D : 0xFF4DFF88);
         txt(c, (int) p.hp + " / " + (int) p.maxHp(), 18 * s, 22.5f * s, 10, 0xFFFFFFFF, Paint.Align.LEFT, true);
-        bar(c, 14 * s, 29 * s, 170 * s, 9 * s, p.ki / p.maxKi(), p.transformed ? Data.GOLD : 0xFF35D6FF);
-        bar(c, 14 * s, 42 * s, 200 * s, 4 * s, p.xp / p.xpNeed(), 0xFFFFD84A);
+        barG(1, c, 14 * s, 29 * s, 170 * s, 9 * s, p.ki / p.maxKi(), p.transformed ? Data.GOLD : 0xFF35D6FF);
+        if (p.rageForm > 0f) barG(3, c, 14 * s, 42 * s, 140 * s, 6 * s, p.rageForm / 16f, Data.GOLD);
+        else barG(3, c, 14 * s, 42 * s, 140 * s, 6 * s, p.rage / 100f, p.rage >= 100f ? 0xFFFFFFFF : 0xFFFF5A3C);
+        txt(c, p.rageForm > 0f ? "ЛЮТЬ" : (p.rage >= 100f ? "ЛЮТЬ 100%: ЗАРЯДЖАЙ!" : "ЛЮТЬ " + (int) p.rage + "%"), 160 * s, 48 * s, 9, p.rage >= 100f ? 0xFFFFFFFF : 0xFFFF9A7A, Paint.Align.LEFT, true);
+        barG(2, c, 0f, H - 6 * s, W, 6 * s, p.xp / p.xpNeed(), 0xFFFFD84A);
         txt(c, "РІВ. " + p.level, 222 * s, 24 * s, 13, 0xFFFFD84A, Paint.Align.LEFT, true);
         // items
         float ix = 14 * s, iy = 56 * s;
@@ -768,9 +853,16 @@ public class GameView extends View {
             glyphAttack(c, bx[bb], by[bb], br[bb] * 0.55f, cc);
         }
         // skills
-        for (int i = 0; i < 4; i++) {
-            if (!p.unlocked[i]) continue;
-            int b = B_SK + i;
+        for (int k = 0; k < 4; k++) {
+            int i = p.slotSkill[k];
+            int b = B_SK + k;
+            if (i < 0) {
+                pt.setStyle(Paint.Style.STROKE);
+                pt.setStrokeWidth(2f * s);
+                pt.setColor(0x40B8C4FF);
+                c.drawCircle(bx[b], by[b], br[b], pt);
+                continue;
+            }
             int col = Data.SKILL_COL[i];
             float cost = p.skillCost(i);
             boolean noKi = p.ki < cost && !(i == 3 && p.transformed);
@@ -955,10 +1047,18 @@ public class GameView extends View {
             n++;
         }
         if (n == 0) txt(c, "Поки порожньо", W / 2f + 170 * s, 190 * s, 12, 0xFF8890B0, Paint.Align.CENTER, false);
-        panel(c, W / 2f - 130 * s, 340 * s, 220 * s, 46 * s, 0xFF4DFFB0, 0.9f);
-        txt(c, "ПРОДОВЖИТИ", W / 2f - 130 * s, 347 * s, 18, 0xFF4DFFB0, Paint.Align.CENTER, true);
-        panel(c, W / 2f + 130 * s, 340 * s, 220 * s, 46 * s, 0xFFFF4D6D, 0.9f);
-        txt(c, "В МЕНЮ", W / 2f + 130 * s, 347 * s, 18, 0xFFFF4D6D, Paint.Align.CENTER, true);
+        txt(c, "СЛОТИ УМІНЬ: торкнись двох, щоб поміняти", W / 2f, 298 * s, 10, 0xFF8890B0, Paint.Align.CENTER, false);
+        for (int k = 0; k < 4; k++) {
+            float cx = W / 2f + (k - 1.5f) * 78 * s;
+            int sk = p.slotSkill[k];
+            int colk = sk >= 0 ? Data.SKILL_COL[sk] : 0xFF3A3F5C;
+            panel(c, cx, 318 * s, 72 * s, 26 * s, pickSlot == k ? 0xFFFFFFFF : colk, 0.8f);
+            txt(c, (k + 1) + (sk >= 0 ? " " + Data.SKILL_NAME[p.cls][sk].split(" ")[0] : " ·"), cx, 322 * s, 9, colk, Paint.Align.CENTER, true);
+        }
+        panel(c, W / 2f - 130 * s, 350 * s, 220 * s, 40 * s, 0xFF4DFFB0, 0.9f);
+        txt(c, "ПРОДОВЖИТИ", W / 2f - 130 * s, 356 * s, 18, 0xFF4DFFB0, Paint.Align.CENTER, true);
+        panel(c, W / 2f + 130 * s, 350 * s, 220 * s, 40 * s, 0xFFFF4D6D, 0.9f);
+        txt(c, "В МЕНЮ", W / 2f + 130 * s, 356 * s, 18, 0xFFFF4D6D, Paint.Align.CENTER, true);
     }
 
     private void drawDead(Canvas c) {

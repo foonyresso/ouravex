@@ -19,7 +19,7 @@ final class Game {
     static final float GRAV = 1500f;
 
     static final class Ctl {
-        boolean left, right, chargeHeld, crouchHeld, atkHeld;
+        boolean left, right, chargeHeld, crouchHeld, atkHeld, dualAtk;
         boolean jumpReq, slideReq, dashReq, atkReq, interactReq;
         int jumpDir, slideDir, dashDir;
         final boolean[] skillReq = new boolean[4];
@@ -273,6 +273,7 @@ final class Game {
         if (e.boss && bossIntro > 0f) d = 0f;
         e.hp -= d;
         e.flash = 0.12f;
+        if (p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + (power == 2 ? 3f : (power == 1 ? 2f : (power == 0 ? 1f : 0.4f))));
         float kr = 1f - e.kbResist;
         e.vx += kbX * kr;
         float vyMul = e.type == Ent.FLYER ? 0.4f : 1f;
@@ -395,6 +396,7 @@ final class Game {
         d *= 60f / (60f + p.defense());
         d = Math.max(1f, d);
         p.hp -= d;
+        if (p.rageForm <= 0f) p.rage = Math.max(0f, p.rage - 15f);
         p.invuln = 0.65f;
         p.hitBlink = 0.65f;
         fx.screenFlash(0xFFFF2040, 0.35f);
@@ -511,7 +513,7 @@ final class Game {
             case Data.C_SPI: p.spi += 2f; break;
             case Data.C_LUK: p.luk += 2f; break;
             case Data.C_UNL0: case Data.C_UNL1: case Data.C_UNL2: case Data.C_UNLT:
-                p.unlocked[id - Data.C_UNL0] = true;
+                p.unlockSkill(id - Data.C_UNL0);
                 break;
             case Data.C_UPG0: case Data.C_UPG1: case Data.C_UPG2: case Data.C_UPGT:
                 p.skLvl[id - Data.C_UPG0]++;
