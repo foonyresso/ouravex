@@ -53,7 +53,8 @@ public final class Fx {
         type[i] = (byte) t;
         x[i] = px; y[i] = py; vx[i] = pvx; vy[i] = pvy;
         life[i] = lifeT; maxLife[i] = lifeT;
-        s0[i] = size0; s1[i] = size1; col[i] = color; drag[i] = dragK; grav[i] = gravK;
+        float k = (t == RING || t == FLASH) ? 1.6f : 1.9f;
+        s0[i] = size0 * k; s1[i] = size1 * k; col[i] = color; drag[i] = dragK; grav[i] = gravK;
     }
 
     // ---------- presets ----------

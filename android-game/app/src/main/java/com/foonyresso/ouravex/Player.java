@@ -40,7 +40,7 @@ final class Player {
     int combo, chain, atkIdx, shotN, airJumps, slideId;
     boolean atkHit;
     float behindBonus;
-    float runPh, idleT;
+    float runPh, idleT, ghostT;
     float lastJumpT = 9f;
     float lungeV;
 
@@ -273,6 +273,14 @@ final class Player {
             vx = approach(vx, dir * sp, (ground ? 6500f : 3600f) * dt);
         } else {
             vx = approach(vx, 0f, (ground ? 7000f : 900f) * dt);
+        }
+        if (ground && Math.abs(vx) > 330f) {
+            ghostT -= dt;
+            if (ghostT <= 0f) {
+                ghostT = 0.045f;
+                g.fx.ghost(pose, x, y, face, color(), hairLen(), hairColor(), 0.22f);
+                g.fx.add(Fx.SPARK, x - face * 30f, y - 30f - g.fx.rnd() * 40f, -face * 700f, 0f, 0.18f, 3f, 0f, color(), 0f, 0f);
+            }
         }
         if (ground && Math.abs(vx) > 150f) {
             idleT -= dt;
