@@ -39,7 +39,9 @@ for apk in apks/*.apk; do
     adb exec-out screencap -p > "$OUT/$n-1-title.png"
     if [ "$n" != captest ]; then
       adb shell input tap $((W / 2)) $((H * 83 / 100))
-      sleep 4
+      sleep 3
+      adb exec-out screencap -p > "$OUT/$n-2-intro.png"
+      sleep 6
       adb exec-out screencap -p > "$OUT/$n-2-play.png"
       # hold attack button, then move
       AX=$((W - H * 22 / 100)); AY=$((H - H * 21 / 100))
