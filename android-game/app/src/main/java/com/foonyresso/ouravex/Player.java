@@ -232,7 +232,7 @@ final class Player {
 
         if (st != ST_SLIDE && st != ST_SKILL) {
             // run animation phase
-            runPh += Math.abs(vx) * dt * 0.045f;
+            runPh += Math.abs(vx) * dt * 0.036f;
         }
         updatePose(dt);
     }

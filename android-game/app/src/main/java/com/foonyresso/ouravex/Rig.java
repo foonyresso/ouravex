@@ -51,14 +51,16 @@ public final class Rig {
     public static void run(float[] out, float ph) {
         float s = (float) Math.sin(ph), c = (float) Math.cos(ph);
         out[0] = 2f;
-        out[1] = -35f + Math.abs(s) * 3f;
-        out[2] = 0.32f;
-        out[3] = 3f;
+        out[1] = -34f + Math.abs(c) * 3.5f;
+        out[2] = 0.38f;
+        out[3] = 4f;
         out[4] = 0f;
-        out[5] = 10f + s * 16f; out[6] = -52f - c * 5f;
-        out[7] = 6f - s * 16f;  out[8] = -50f + c * 5f;
-        out[9] = 4f + s * 22f;  out[10] = -Math.max(0f, c) * 14f;
-        out[11] = 4f - s * 22f; out[12] = -Math.max(0f, -c) * 14f;
+        // руки зігнуті, махають вперед-вгору / назад-вниз, як у бігуна
+        out[5] = 8f + s * 24f;  out[6] = -50f - s * 11f;
+        out[7] = 8f - s * 24f;  out[8] = -50f + s * 11f;
+        // широкий крок, коліно піднімається
+        out[9] = 4f + s * 34f;  out[10] = -Math.max(0f, c) * 24f;
+        out[11] = 4f - s * 34f; out[12] = -Math.max(0f, -c) * 24f;
     }
 
     private static int withAlpha(int color, float a) {

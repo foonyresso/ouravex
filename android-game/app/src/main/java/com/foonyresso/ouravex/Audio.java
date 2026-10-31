@@ -277,6 +277,17 @@ public final class Audio {
         return base * (float) Math.pow(2.0, s / 12.0);
     }
 
+    private boolean padActive;
+    private float padEnv, padA, padB, padC, padPa, padPb, padPc, leadVib;
+    private final float[] echo = new float[SR * 3 / 10];
+    private int echoI;
+    private float lpM;
+
+    private static float tri(float ph) {
+        float x = (ph / TAU) % 1f;
+        return Math.abs(x * 4f - 2f) - 1f;
+    }
+
     private short nextSample() {
         int mode = musicMode;
         if (mode != lastMode) {
@@ -305,16 +316,21 @@ public final class Audio {
             float m = bs * bassEnv * 0.30f;
             // arp
             arpPh += TAU * arpFreq / SR;
-            float ar = (sn(arpPh) > 0 ? 1f : -1f) * 0.5f + sn(arpPh * 2f) * 0.3f;
+            float ar = tri(arpPh) * 0.55f + sn(arpPh) * 0.35f;
             arpEnv *= 0.9994f;
             m += ar * arpEnv * (mode == MUS_TITLE ? 0.10f : 0.12f);
             // lead (boss)
             if (leadEnv > 0.001f) {
                 leadPh += TAU * leadFreq / SR;
-                float ld = ((leadPh / TAU) % 1f) * 2f - 1f;
+                leadVib += TAU * 5.5f / SR;
+                float ld = sn(leadPh + 0.25f * sn(leadVib)) * 0.7f + tri(leadPh) * 0.25f;
                 leadEnv *= 0.9996f;
-                m += ld * leadEnv * 0.10f;
+                m += ld * leadEnv * 0.12f;
             }
+            // тепла «подушка» акордів
+            if (padActive) { if (padEnv < 1f) padEnv += 1f / (SR * 0.9f); } else padEnv *= 0.9997f;
+            padPa += TAU * padA / SR; padPb += TAU * padB / SR; padPc += TAU * padC / SR;
+            m += (sn(padPa) + sn(padPb) + sn(padPc) + 0.4f * sn(padPa * 0.5f)) * padEnv * 0.045f;
             // drums
             if (kickEnv > 0.001f) {
                 kickPh += TAU * (42f + 120f * kickEnv * kickEnv) / SR;
@@ -323,14 +339,20 @@ public final class Audio {
             }
             float nz = noise();
             if (snEnv > 0.001f) {
-                m += (nz * 0.6f + sn(step * 1.7f + stepCounter * 0.03f) * 0.2f) * snEnv * 0.28f;
+                lpM += (nz - lpM) * 0.35f;
+                m += (lpM * 0.8f + sn(step * 1.7f + stepCounter * 0.03f) * 0.15f) * snEnv * 0.30f;
                 snEnv *= 0.9988f;
             }
             if (hatEnv > 0.001f) {
-                m += (nz - prevNoise) * hatEnv * 0.16f;
+                m += (nz - prevNoise) * hatEnv * 0.07f;
                 hatEnv *= 0.9975f;
             }
             prevNoise = nz;
+            // м'яка луна
+            float dl = echo[echoI];
+            echo[echoI] = m * 0.5f + dl * 0.42f;
+            if (++echoI >= echo.length) echoI = 0;
+            m = m * 0.85f + dl * 0.35f;
             out += m * musGain;
         }
 
@@ -376,6 +398,11 @@ public final class Audio {
             bassFreq = (step == 6 || step == 14) ? rootF * 2f : rootF;
             bassEnv = 1f;
         }
+        if (step == 0) {
+            padA = semi(rootF * 2f, 0); padB = semi(rootF * 2f, third); padC = semi(rootF * 2f, 7);
+            padEnv = 0f; padActive = true;
+        }
+        if (step == 13) padActive = false;
         // arp
         int pi = ARP_PAT[step & 7];
         int off = pi == 0 ? 0 : (pi == 1 ? third : (pi == 2 ? 7 : 12));

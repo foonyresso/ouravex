@@ -76,11 +76,15 @@ final class Render {
         c.translate(W * 0.5f, H * 0.5f);
         c.scale(zoom, zoom);
         c.translate(-W * 0.5f, -H * 0.5f);
-        c.scale(S, S);
-        c.translate(-g.camX + g.fx.shakeX, 300f + g.fx.shakeY);
+        c.scale(S * Game.ZOOM, S * Game.ZOOM);
+        c.translate(-g.camX + g.fx.shakeX, -g.camY + g.fx.shakeY);
 
-        drawGround(c, g, W / S, t);
-        for (int i = 0; i < g.plats.size(); i++) drawPlatform(c, g, g.plats.get(i));
+        drawGround(c, g, g.viewW, t);
+        for (int i = 0; i < g.plats.size(); i++) {
+            Platform pl = g.plats.get(i);
+            if (pl.x + pl.w < g.camX - 50f || pl.x > g.camX + g.viewW + 50f || pl.y < g.camY - 50f || pl.y > g.camY + g.viewH + 50f) continue;
+            drawPlatform(c, g, pl);
+        }
         drawPortal(c, g, t);
         for (int i = 0; i < g.chests.size(); i++) drawChest(c, g.chests.get(i), t);
         for (int i = 0; i < g.drops.size(); i++) drawDrop(c, g.drops.get(i), t);
@@ -182,8 +186,8 @@ final class Render {
         }
         gl(c, x0, 0f, x1, 0f, pal[2], 2.5f);
         // world edges
-        if (g.camX < 40f) gl(c, 0f, 0f, 0f, -400f, a(pal[2], 0.6f), 2f);
-        if (g.camX + viewW > Game.WORLD_W - 40f) gl(c, Game.WORLD_W, 0f, Game.WORLD_W, -400f, a(pal[2], 0.6f), 2f);
+        if (g.camX < 40f) gl(c, 0f, 0f, 0f, -Game.WORLD_H, a(pal[2], 0.6f), 2f);
+        if (g.camX + viewW > Game.WORLD_W - 40f) gl(c, Game.WORLD_W, 0f, Game.WORLD_W, -Game.WORLD_H, a(pal[2], 0.6f), 2f);
     }
 
     private void drawPlatform(Canvas c, Game g, Platform pl) {
@@ -236,6 +240,8 @@ final class Render {
 
     private void drawChest(Canvas c, Chest ch, float t) {
         float x = ch.x;
+        c.save();
+        c.translate(0f, ch.y);
         int col = ch.open ? 0xFF6A5A30 : 0xFFFFD84A;
         float pulse = ch.open ? 0f : 0.5f + 0.5f * (float) Math.sin(t * 4f + x);
         if (!ch.open) {
@@ -255,6 +261,7 @@ final class Render {
             line(c, x - 18f, -14f, x + 18f, -14f, col, 2f);
             circ(c, x, -14f, 3.5f, 0xFFFFFFFF, true, 1f);
         }
+        c.restore();
     }
 
     private void drawDrop(Canvas c, Drop d, float t) {

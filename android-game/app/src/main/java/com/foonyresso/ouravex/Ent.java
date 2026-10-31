@@ -15,7 +15,7 @@ public final class Ent {
         int state;                   // AI state
         float t;                     // state timer
         float cd;                    // attack cooldown
-        float stun, flash;
+        float stun, flash, jt;
         float kbResist;              // 0..1
         float armor;                 // >0 => light hits do not stagger
         float a1, a2, a3;            // misc AI vars
@@ -64,7 +64,7 @@ public final class Ent {
     }
 
     public static final class Chest {
-        float x;
+        float x, y;
         boolean open;
         float t;
     }

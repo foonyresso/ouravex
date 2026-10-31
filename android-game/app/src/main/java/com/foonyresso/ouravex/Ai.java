@@ -47,11 +47,14 @@ final class Ai {
         return x1 > p.x - 14f && x0 < p.x + 14f && y1 > top && y0 < p.y + 4f;
     }
 
-    private static void ground(Enemy e, float dt) {
+    private static void ground(Game g, Enemy e, float dt) {
         e.vy += Game.GRAV * dt;
         e.x += e.vx * dt;
+        float y0 = e.y;
         e.y += e.vy * dt;
-        if (e.y >= 0f) { e.y = 0f; e.vy = 0f; }
+        e.jt -= dt;
+        float fl = g.floorBelow(e.x, y0);
+        if (e.vy >= 0f && e.y >= fl) { e.y = fl; e.vy = 0f; }
         e.x = Player.clamp(e.x, 20f, Game.WORLD_W - 20f);
     }
 
@@ -60,6 +63,13 @@ final class Ai {
         e.y += e.vy * dt;
         if (e.y > -30f) e.y = -30f;
         e.x = Player.clamp(e.x, 20f, Game.WORLD_W - 20f);
+    }
+
+    private static void jumpUp(Game g, Enemy e) {
+        Player p = g.p;
+        if (e.vy == 0f && e.jt <= 0f && p.y < e.y - 60f && Math.abs(p.x - e.x) < 320f) {
+            e.vy = -640f; e.jt = 1.1f;
+        }
     }
 
     private static int sgn(float v) { return v >= 0f ? 1 : -1; }
@@ -74,7 +84,7 @@ final class Ai {
             e.stun -= dt;
             e.state = S_CHASE; e.t = 0f;
             e.vx = Player.approach(e.vx, 0f, 700f * dt);
-            ground(e, dt);
+            ground(g, e, dt);
             return;
         }
         switch (e.state) {
@@ -82,7 +92,8 @@ final class Ai {
                 e.face = sgn(dx);
                 float want = adx > 48f ? e.face * e.speed : 0f;
                 e.vx = Player.approach(e.vx, want, 900f * dt);
-                if (adx < 62f && Math.abs(p.y - e.y) < 70f && e.cd <= 0f && e.y >= 0f && p.st != Player.ST_DEAD) {
+                jumpUp(g, e);
+                if (adx < 62f && Math.abs(p.y - e.y) < 70f && e.cd <= 0f && e.vy == 0f && p.st != Player.ST_DEAD) {
                     e.state = S_WIND; e.t = 0f; e.n1 = 0;
                     g.audio.play(Audio.WARN, 0.18f);
                 }
@@ -119,7 +130,7 @@ final class Ai {
                 if (e.t >= 0.45f) { e.state = S_CHASE; e.t = 0f; }
                 break;
         }
-        ground(e, dt);
+        ground(g, e, dt);
     }
 
     // ---------------- flyer ----------------
@@ -173,7 +184,7 @@ final class Ai {
             e.stun -= dt;
             e.state = S_CHASE; e.t = 0f;
             e.vx = Player.approach(e.vx, 0f, 700f * dt);
-            ground(e, dt);
+            ground(g, e, dt);
             return;
         }
         switch (e.state) {
@@ -181,7 +192,8 @@ final class Ai {
                 e.face = sgn(dx);
                 float want = adx > 66f ? e.face * e.speed : 0f;
                 e.vx = Player.approach(e.vx, want, 700f * dt);
-                if (e.cd <= 0f && e.y >= 0f && p.st != Player.ST_DEAD) {
+                jumpUp(g, e);
+                if (e.cd <= 0f && e.vy == 0f && p.st != Player.ST_DEAD) {
                     if (adx < 84f && Math.abs(p.y - e.y) < 70f) {
                         e.state = S_WIND; e.t = 0f;
                         g.audio.play(Audio.WARN, 0.25f);
@@ -233,7 +245,7 @@ final class Ai {
                 if (e.t >= (e.a3 > 0f ? e.a3 : 0.5f)) { e.state = S_CHASE; e.t = 0f; e.a3 = 0f; }
                 break;
         }
-        ground(e, dt);
+        ground(g, e, dt);
     }
 
     // ---------------- boss 1: Colossus ----------------
@@ -352,7 +364,7 @@ final class Ai {
                 if (e.t >= e.a3) { e.state = B_IDLE; e.t = 0f; }
                 break;
         }
-        ground(e, dt);
+        ground(g, e, dt);
     }
 
     private static void pickBoss1(Game g, Enemy e, float as) {

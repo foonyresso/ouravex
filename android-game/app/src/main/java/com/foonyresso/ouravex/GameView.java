@@ -11,8 +11,9 @@ import android.view.View;
 
 /** Touch input, screens (title / pause / level-up / death) and HUD. */
 public class GameView extends View {
-    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3;
-    private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, NB = 9;
+    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4;
+    private float introT;
+    private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, B_ATK2 = 9, NB = 10;
 
     private final Audio audio = new Audio();
     private final Game game = new Game(audio);
@@ -92,6 +93,14 @@ public class GameView extends View {
         lastCls = selCls;
         lastDiff = selDiff;
         game.newRun(selCls, selDiff);
+        screen = INTRO;
+        introT = 0f;
+        audio.setDuck(false);
+        audio.play(Audio.TRANSFORM, 0.4f);
+        resetInput();
+    }
+
+    private void beginPlay() {
         screen = PLAY;
         audio.setDuck(false);
         audio.play(Audio.TRANSFORM, 0.5f);
@@ -111,22 +120,18 @@ public class GameView extends View {
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
         W = w; H = h; S = h / 400f;
-        // кнопки руху по краях екрана, навколо кожної кластер умінь
-        float lx = 78 * S, rx = W - 78 * S, yy = H - 74 * S;
-        bx[B_L] = lx; by[B_L] = yy; br[B_L] = 56 * S;
-        bx[B_R] = rx; by[B_R] = yy; br[B_R] = 56 * S;
-        // удар: ліворуч від правої кнопки
-        bx[B_ATK] = rx - 124 * S; by[B_ATK] = yy + 6 * S; br[B_ATK] = 46 * S;
-        // уміння 0,1 навколо лівої; 2,3 навколо правої
-        float[][] pos = {
-            {lx, 124 * S, 0f}, {lx, 112 * S, 312f},
-            {rx, 112 * S, 228f}, {rx, 124 * S, 270f}};
-        pos[0][2] = 358f; pos[3][2] = 270f;
+        // кнопки руху по нижніх кутах, удар над ними, малі уміння навколо
+        float lx = 62 * S, rx = W - 62 * S, yy = H - 58 * S;
+        bx[B_L] = lx; by[B_L] = yy; br[B_L] = 44 * S;
+        bx[B_R] = rx; by[B_R] = yy; br[B_R] = 44 * S;
+        bx[B_ATK] = lx + 8 * S; by[B_ATK] = yy - 150 * S; br[B_ATK] = 36 * S;
+        bx[B_ATK2] = rx - 8 * S; by[B_ATK2] = yy - 150 * S; br[B_ATK2] = 36 * S;
+        float[][] pos = {{lx, 0f}, {lx, -40f}, {rx, 180f}, {rx, 220f}};
         for (int i = 0; i < 4; i++) {
-            double a = Math.toRadians(pos[i][2]);
-            bx[B_SK + i] = pos[i][0] + (float) Math.cos(a) * pos[i][1];
-            by[B_SK + i] = yy + (float) Math.sin(a) * pos[i][1];
-            br[B_SK + i] = 32 * S;
+            double a = Math.toRadians(pos[i][1]);
+            bx[B_SK + i] = pos[i][0] + (float) Math.cos(a) * 86 * S;
+            by[B_SK + i] = yy + (float) Math.sin(a) * 86 * S;
+            br[B_SK + i] = 24 * S;
         }
         bx[B_INT] = W * 0.5f; by[B_INT] = H - 64 * S; br[B_INT] = 44 * S;
         bx[B_PAUSE] = W - 30 * S; by[B_PAUSE] = 28 * S; br[B_PAUSE] = 20 * S;
@@ -179,6 +184,7 @@ public class GameView extends View {
         int b = hitButton(x, y);
         if (id < ptrBtn.length) ptrBtn[id] = b;
         if (b < 0) return;
+        if (crouchLatch) crouchLatch = false;
         bDown[b] = true; bDownX[b] = x; bDownY[b] = y; bDownT[b] = uiT; bSwiped[b] = false;
         Game.Ctl c = game.ctl;
         if (b == B_L || b == B_R) {
@@ -187,7 +193,7 @@ public class GameView extends View {
                 c.dashDir = b == B_L ? -1 : 1;
                 bUpT[b] = -9f;
             }
-        } else if (b == B_ATK) {
+        } else if (b == B_ATK || b == B_ATK2) {
             c.atkReq = true;
         } else if (b >= B_SK && b < B_SK + 4) {
             c.skillReq[b - B_SK] = true;
@@ -234,7 +240,6 @@ public class GameView extends View {
         if (b < 0) return;
         bDown[b] = false;
         if (b <= B_R) { bUpT[b] = uiT; bDur[b] = uiT - bDownT[b]; }
-        if (!bDown[B_L] && !bDown[B_R]) crouchLatch = false;
     }
 
     // ---------------- menus ----------------
@@ -268,6 +273,8 @@ public class GameView extends View {
                 audio.play(Audio.CLICK, 0.7f);
                 toTitle();
             }
+        } else if (screen == INTRO) {
+            if (introT > 0.6f) beginPlay();
         } else if (screen == DEAD) {
             if (deadT < 0.8f) return;
             if (in(x, y, W / 2f - 130 * s, 330 * s, 220 * s, 46 * s)) {
@@ -310,10 +317,10 @@ public class GameView extends View {
                 lvlT = 0f;
                 Game.Ctl k = game.ctl;
                 k.left = bDown[B_L]; k.right = bDown[B_R];
-                k.crouchHeld = crouchLatch && (bDown[B_L] || bDown[B_R]);
+                k.crouchHeld = crouchLatch;
                 k.chargeHeld = bDown[B_L] && bDown[B_R] && !bSwiped[B_L] && !bSwiped[B_R] && !crouchLatch;
-                k.atkHeld = bDown[B_ATK];
-                game.viewW = W / S;
+                k.atkHeld = bDown[B_ATK] || bDown[B_ATK2];
+                game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM);
                 game.update(dt);
                 if (game.levelUpPending) lvlT = 0f;
                 if (game.over) {
@@ -329,7 +336,15 @@ public class GameView extends View {
         } else if (screen == DEAD) {
             deadT += dt;
         }
-        if (screen == TITLE) game.viewW = W / S;
+        if (screen == TITLE) game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM);
+
+        if (screen == INTRO) {
+            introT += dt;
+            drawIntro(c);
+            if (introT > 7.0f) beginPlay();
+            postInvalidateOnAnimation();
+            return;
+        }
 
         // ---- draw ----
         render.draw(c, game, W, H, S, uiT);
@@ -343,6 +358,128 @@ public class GameView extends View {
             else if (screen == DEAD) drawDead(c);
         }
         postInvalidateOnAnimation();
+    }
+
+    private final float[] ipose = new float[Rig.N];
+
+    private void caption(Canvas c, String t, float t0, float t1, float y) {
+        float a = Math.min(1f, Math.min((introT - t0) * 3f, (t1 - introT) * 3f));
+        if (a <= 0f) return;
+        txt(c, t, W / 2f, y, 17, Render.a(0xFFFFFFFF, a), Paint.Align.CENTER, true);
+    }
+
+    private void drawIntro(Canvas c) {
+        float s = S, T = introT;
+        int cls = game.p.cls;
+        int col = game.p.color();
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xFF05060F);
+        c.drawRect(0, 0, W, H, pt);
+        for (int i = 0; i < 70; i++) {
+            float sx = ((i * 7919) % 1000) / 1000f * W, sy = ((i * 104729) % 1000) / 1000f * H * 0.8f;
+            float tw = 0.4f + 0.6f * (float) Math.abs(Math.sin(T * 2f + i));
+            pt.setColor(Render.a(0xFFFFFFFF, 0.5f * tw));
+            c.drawCircle(sx, sy, (1f + (i % 3)) * s * 0.6f, pt);
+        }
+        float gy = H * 0.74f;
+        float fa = 1f;
+        float fx = W * 0.5f, fy = gy, sc = 2.3f * s;
+        float flash = 0f;
+        if (cls == 0) {
+            // ґрунт
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(2.5f * s);
+            pt.setColor(Render.a(0xFF4DD2FF, 0.8f));
+            c.drawLine(0, gy, W, gy, pt);
+            float wx = W * 0.5f;
+            if (T < 2.4f) {
+                fx = W * 0.12f + (wx - W * 0.12f) * (T / 2.4f);
+                Rig.run(ipose, T * 9f);
+            } else {
+                fx = wx;
+                Rig.copy(ipose, T < 3.3f ? Rig.FALL : Rig.JUMP);
+            }
+            if (T > 2.3f) {
+                float k = Math.min(1f, (T - 2.3f) / 0.9f);
+                for (int i = 0; i < 4; i++) {
+                    float r = (50 + i * 22) * s * k * (1f + 0.06f * (float) Math.sin(T * 8f + i));
+                    rf.set(wx - r * 1.5f, gy - r * 0.25f, wx + r * 1.5f, gy + r * 0.25f);
+                    pt.setStrokeWidth(3f * s);
+                    pt.setColor(Render.a(i % 2 == 0 ? 0xFF4DFFB0 : 0xFF7DF9FF, 0.8f - i * 0.15f));
+                    c.drawOval(rf, pt);
+                }
+                pt.setStyle(Paint.Style.FILL);
+                pt.setColor(Render.a(0xFF4DFFB0, 0.25f * k));
+                rf.set(wx - 70 * s * k, gy - 12 * s * k, wx + 70 * s * k, gy + 12 * s * k);
+                c.drawOval(rf, pt);
+            }
+            if (T > 3.4f) {
+                float k = (T - 3.4f) / 1.0f;
+                fy = gy + k * k * 230f * s;
+                fa = Math.max(0f, 1f - k);
+                sc *= Math.max(0.2f, 1f - k * 0.6f);
+            }
+            flash = T > 4.2f ? Math.max(0f, 1f - (T - 4.2f) * 1.2f) : 0f;
+        } else {
+            float cx = W * 0.74f;
+            float bob = (float) Math.sin(T * 2.4f) * 5f * s;
+            fx = W * 0.32f; fy = H * 0.56f + bob;
+            Rig.copy(ipose, Rig.CHARGE);
+            if (T > 1.8f) {
+                float k = Math.min(1f, (T - 1.8f) / 1.2f);
+                pt.setStyle(Paint.Style.STROKE);
+                pt.setStrokeCap(Paint.Cap.ROUND);
+                for (int pass = 0; pass < 2; pass++) {
+                    pt.setStrokeWidth((pass == 0 ? 9f : 3f) * s);
+                    pt.setColor(pass == 0 ? Render.a(0xFF7B5CFF, 0.5f) : 0xFFFFFFFF);
+                    float px = cx, py = H * 0.15f;
+                    for (int i = 0; i < 9; i++) {
+                        if (i / 9f > k) break;
+                        float nx = cx + (float) Math.sin(i * 2.3f) * 26f * s, ny = H * 0.15f + i * H * 0.08f;
+                        c.drawLine(px, py, nx, ny, pt);
+                        px = nx; py = ny;
+                    }
+                }
+            }
+            if (T > 3.1f) {
+                float k = Math.min(1f, (T - 3.1f) / 1.3f);
+                fx = W * 0.32f + (cx - W * 0.32f) * k * k;
+                fy = H * 0.56f - (H * 0.12f) * k + bob * (1f - k);
+                sc *= Math.max(0.15f, 1f - k * 0.85f);
+                fa = Math.max(0f, 1f - k * 0.9f);
+            }
+            flash = T > 4.3f ? Math.max(0f, 1f - (T - 4.3f) * 1.2f) : 0f;
+        }
+        if (fa > 0.02f) {
+            c.save();
+            c.translate(fx, fy);
+            c.scale(sc, sc);
+            if (cls == 1 && T > 3.1f) c.rotate((T - 3.1f) * 420f);
+            Rig.draw(c, pt, 0f, 0f, 1, ipose, col, fa, true, game.p.hairLen(), game.p.hairColor());
+            c.restore();
+        }
+        if (cls == 0) {
+            caption(c, "Кай просто йшов додому…", 0.3f, 2.5f, H * 0.9f);
+            caption(c, "…коли земля під ногами засяяла.", 2.6f, 4.4f, H * 0.9f);
+        } else {
+            caption(c, "Рей медитував серед зірок…", 0.3f, 2.5f, H * 0.9f);
+            caption(c, "…доки сам простір не тріснув.", 2.6f, 4.4f, H * 0.9f);
+        }
+        if (T > 4.6f) {
+            float a = Math.min(1f, (T - 4.6f) * 2f);
+            float out = T > 6.4f ? Math.max(0f, 1f - (T - 6.4f) * 1.6f) : 1f;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFF05060F, 0.88f * a * out));
+            c.drawRect(0, 0, W, H, pt);
+            txt(c, "OURAVEX", W / 2f, H * 0.46f, 56, Render.a(col, a * out), Paint.Align.CENTER, true);
+            txt(c, "Світ без кінця. Вижити можна лише б'ючись.", W / 2f, H * 0.58f, 15, Render.a(0xFFFFFFFF, a * out), Paint.Align.CENTER, true);
+        }
+        if (flash > 0f) {
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFFFFFFFF, flash));
+            c.drawRect(0, 0, W, H, pt);
+        }
+        if (T > 0.8f) txt(c, "торкнись, щоб пропустити", W - 14 * s, H - 12 * s, 10, 0x88FFFFFF, Paint.Align.RIGHT, false);
     }
 
     private void drawUpdate(Canvas c) {
@@ -548,7 +685,7 @@ public class GameView extends View {
         }
         // portal arrow
         if (game.portalState == 1 || game.portalState == 4) {
-            float sx = (game.portalX - game.camX) * s;
+            float sx = (game.portalX - game.camX) * s * Game.ZOOM;
             if (sx < 0f || sx > W) {
                 boolean left = sx < 0f;
                 float ax = left ? 26 * s : W - 26 * s, ay = H * 0.38f;
@@ -623,8 +760,11 @@ public class GameView extends View {
             txt(c, "ЗАРЯДКА", (bx[B_L] + bx[B_R]) / 2f, by[B_L] - br[B_L] - 20 * s, 11, cc, Paint.Align.CENTER, true);
         }
         // attack
-        circleBtn(c, B_ATK, cc, bDown[B_ATK], 0.16f);
-        glyphAttack(c, bx[B_ATK], by[B_ATK], br[B_ATK] * 0.55f, cc);
+        for (int ab = 0; ab < 2; ab++) {
+            int bb = ab == 0 ? B_ATK : B_ATK2;
+            circleBtn(c, bb, cc, bDown[bb], 0.16f);
+            glyphAttack(c, bx[bb], by[bb], br[bb] * 0.55f, cc);
+        }
         // skills
         for (int i = 0; i < 4; i++) {
             if (!p.unlocked[i]) continue;

@@ -13,7 +13,9 @@ import java.util.Random;
 
 /** Simulation: stage flow, spawning, combat resolution, drops, cards. */
 final class Game {
-    static final float WORLD_W = 3400f;
+    static final float WORLD_W = 17000f;
+    static final float WORLD_H = 5200f;
+    static final float ZOOM = 0.40f;
     static final float GRAV = 1500f;
 
     static final class Ctl {
@@ -47,7 +49,7 @@ final class Game {
     float portalX, despawnT, spawnT;
     Enemy boss;
     int lastBoss = -1;
-    float camX, viewW = 800f;
+    float camX, camY = -700f, viewW = 2000f, viewH = 1000f;
     float hitstop, slowT, slowScale = 1f, timeScale = 1f, zoomKick;
     boolean levelUpPending, dead, over;
     float deadT;
@@ -84,29 +86,45 @@ final class Game {
         enemies.clear(); projs.clear(); teles.clear(); bursts.clear(); drops.clear();
         plats.clear(); chests.clear();
         boss = null; portalState = 0; despawnT = 0; bossIntro = 0;
-        portalX = 900f + rnd.nextFloat() * (WORLD_W - 1800f);
-        p.x = 250f; p.y = 0f; p.vx = 0f; p.vy = 0f; p.st = Player.ST_FREE; p.stT = 0f;
+        portalX = 3000f + rnd.nextFloat() * (WORLD_W - 4500f);
+        p.x = 400f; p.y = 0f; p.vx = 0f; p.vy = 0f; p.st = Player.ST_FREE; p.stT = 0f;
         if (stage > 1) p.heal(p.maxHp() * 0.35f);
         palIdx = (stage - 1) % Data.PAL.length;
-        int n = 6 + rnd.nextInt(3);
-        for (int i = 0; i < n; i++) {
-            Platform pl = new Platform();
-            pl.w = 170f + rnd.nextFloat() * 100f;
-            pl.x = 220f + i * (WORLD_W - 700f) / n + rnd.nextFloat() * 100f;
-            pl.y = rnd.nextBoolean() ? -95f : -165f;
-            plats.add(pl);
+        int rows = (int) ((WORLD_H - 350f) / 118f);
+        for (int r = 0; r < rows; r++) {
+            float y = -112f - r * 118f - rnd.nextFloat() * 14f;
+            float off = (r % 2) * 210f;
+            for (float x = 150f + off; x < WORLD_W - 300f; x += 440f) {
+                if (rnd.nextFloat() < 0.22f) continue;
+                Platform pl = new Platform();
+                pl.w = 170f + rnd.nextFloat() * 110f;
+                pl.x = x + (rnd.nextFloat() - 0.5f) * 140f;
+                pl.y = y;
+                plats.add(pl);
+            }
         }
-        int nc = 2 + rnd.nextInt(2);
+        int nc = 7 + rnd.nextInt(4);
         for (int i = 0; i < nc; i++) {
             Chest c = new Chest();
-            c.x = 500f + rnd.nextFloat() * (WORLD_W - 1000f);
-            if (Math.abs(c.x - portalX) < 200f) c.x += 300f;
+            Platform pl = plats.get(rnd.nextInt(plats.size()));
+            c.x = pl.x + pl.w * 0.5f;
+            c.y = pl.y;
             chests.add(c);
         }
         spawnT = 1.2f;
-        camX = 0f;
+        camX = 0f; camY = -0.75f * viewH;
         flashBanner("ЛОКАЦІЯ " + stage, Data.PAL[palIdx][2]);
         audio.setMusic(Audio.MUS_STAGE);
+    }
+
+    /** Поверхня під ногами: найвища платформа не вище за y, інакше земля 0. */
+    float floorBelow(float x, float y) {
+        float best = 0f;
+        for (int i = 0; i < plats.size(); i++) {
+            Platform pl = plats.get(i);
+            if (pl.y >= y - 4f && pl.y < best && x > pl.x - 6f && x < pl.x + pl.w + 6f) best = pl.y;
+        }
+        return best;
     }
 
     float dc() { return 1f + runTime / 120f + (stage - 1) * 0.35f; }
@@ -504,19 +522,19 @@ final class Game {
 
     String interactLabel() {
         if (p.st == Player.ST_DEAD) return null;
-        if (Math.abs(p.x - portalX) < 100f) {
+        if (Math.abs(p.x - portalX) < 100f && p.y > -120f) {
             if (portalState == 1) return "АКТИВУВАТИ ПОРТАЛ";
             if (portalState == 4) return "ДАЛІ";
         }
         for (int i = 0; i < chests.size(); i++) {
             Chest c = chests.get(i);
-            if (!c.open && Math.abs(p.x - c.x) < 80f) return "ВІДКРИТИ";
+            if (!c.open && Math.abs(p.x - c.x) < 80f && Math.abs(p.y - c.y) < 90f) return "ВІДКРИТИ";
         }
         return null;
     }
 
     private void interact() {
-        if (Math.abs(p.x - portalX) < 100f) {
+        if (Math.abs(p.x - portalX) < 100f && p.y > -120f) {
             if (portalState == 1) {
                 portalState = 2;
                 despawnT = 9f;
@@ -536,10 +554,10 @@ final class Game {
         }
         for (int i = 0; i < chests.size(); i++) {
             Chest c = chests.get(i);
-            if (!c.open && Math.abs(p.x - c.x) < 80f) {
+            if (!c.open && Math.abs(p.x - c.x) < 80f && Math.abs(p.y - c.y) < 90f) {
                 c.open = true;
-                spawnItem(c.x, -40f, rnd.nextInt(Data.ITEMS));
-                fx.explosion(c.x, -20f, 50f, 0xFFFFD84A);
+                spawnItem(c.x, c.y - 40f, rnd.nextInt(Data.ITEMS));
+                fx.explosion(c.x, c.y - 20f, 50f, 0xFFFFD84A);
                 audio.play(Audio.PICKUP, 1f);
                 return;
             }
@@ -637,10 +655,13 @@ final class Game {
         }
 
         // camera
-        float target = p.x - viewW * 0.5f + p.face * 70f;
+        float target = p.x - viewW * 0.5f + p.face * 90f;
         target = Player.clamp(target, 0f, Math.max(0f, WORLD_W - viewW));
         camX += (target - camX) * Math.min(1f, 7f * dt);
         camX = Player.clamp(camX, 0f, Math.max(0f, WORLD_W - viewW));
+        float ty = Player.clamp(p.y - viewH * 0.62f, -WORLD_H, -0.75f * viewH);
+        camY += (ty - camY) * Math.min(1f, 6f * dt);
+        camY = Player.clamp(camY, -WORLD_H, -0.75f * viewH);
 
         fx.update(dt);
 
@@ -658,14 +679,32 @@ final class Game {
         int type = Ent.GRUNT;
         if (r < pb) type = Ent.BRUTE;
         else if (r < pb + 0.30f) type = Ent.FLYER;
-        int side = rnd.nextBoolean() ? 1 : -1;
-        float x = side > 0 ? camX + viewW + 70f : camX - 70f;
-        if (x < 30f || x > WORLD_W - 30f) {
-            side = -side;
-            x = side > 0 ? camX + viewW + 70f : camX - 70f;
+        // моби з'являються за краєм екрана, недалеко від гравця
+        float x = 0f, y = 0f;
+        boolean ok = false;
+        if (type == Ent.FLYER) {
+            float ang = rnd.nextFloat() * 6.2832f;
+            x = p.x + (float) Math.cos(ang) * viewW * 0.62f;
+            y = p.y - 60f + (float) Math.sin(ang) * viewH * 0.5f;
+            y = Player.clamp(y, -WORLD_H + 100f, -60f);
+            ok = true;
+        } else {
+            for (int tries = 0; tries < 14 && !ok; tries++) {
+                int side = rnd.nextBoolean() ? 1 : -1;
+                x = p.x + side * (viewW * 0.52f + rnd.nextFloat() * 400f);
+                float yy = p.y + (rnd.nextFloat() - 0.5f) * viewH * 0.8f;
+                y = floorBelow(x, yy);
+                float best = 0f;
+                boolean found = y == 0f && yy > -60f;
+                for (int i = 0; i < plats.size(); i++) {
+                    Platform pl = plats.get(i);
+                    if (Math.abs(pl.y - yy) < 130f && x > pl.x + 30f && x < pl.x + pl.w - 30f) { y = pl.y; found = true; break; }
+                }
+                ok = found;
+            }
+            if (!ok) { x = p.x + (rnd.nextBoolean() ? 1 : -1) * viewW * 0.55f; y = 0f; }
         }
         x = Player.clamp(x, 30f, WORLD_W - 30f);
-        float y = type == Ent.FLYER ? -(140f + rnd.nextFloat() * 120f) : 0f;
         spawnEnemy(type, x, y);
     }
 
@@ -675,7 +714,7 @@ final class Game {
         for (int i = projs.size() - 1; i >= 0; i--) {
             Proj b = projs.get(i);
             b.life -= dt;
-            if (b.life <= 0f || b.x < -100f || b.x > WORLD_W + 100f || b.y < -900f) {
+            if (b.life <= 0f || b.x < -100f || b.x > WORLD_W + 100f || b.y < -WORLD_H - 400f) {
                 if (b.friendly && b.aoe > 0f && b.life <= 0f) explodeAt(b.x, b.y, b.aoe, b.dmg, b.color);
                 projs.remove(i);
                 continue;
@@ -820,7 +859,7 @@ final class Game {
                 d.vy += 900f * dt;
                 d.x += d.vx * dt;
                 d.y += d.vy * dt;
-                if (d.y > -26f) { d.y = -26f; d.vy = -d.vy * 0.35f; if (Math.abs(d.vy) < 40f) d.vy = 0f; d.vx *= 0.8f; }
+                float fl0 = floorBelow(d.x, d.y - 30f); if (d.y > fl0 - 26f) { d.y = fl0 - 26f; d.vy = -d.vy * 0.35f; if (Math.abs(d.vy) < 40f) d.vy = 0f; d.vx *= 0.8f; }
                 if (d.t > 0.4f && dist < 110f) {
                     d.x += dx / Math.max(1f, dist) * 420f * dt;
                     d.y += dy / Math.max(1f, dist) * 420f * dt;
@@ -836,7 +875,7 @@ final class Game {
                 d.vy += 1100f * dt;
                 d.x += d.vx * dt;
                 d.y += d.vy * dt;
-                if (d.y > -8f) { d.y = -8f; d.vy = 0f; d.vx *= 0.8f; }
+                float fl1 = floorBelow(d.x, d.y - 20f); if (d.y > fl1 - 8f) { d.y = fl1 - 8f; d.vy = 0f; d.vx *= 0.8f; }
                 if (d.t > 0.3f && dist < 140f) {
                     d.x += dx / Math.max(1f, dist) * 520f * dt;
                     d.y += dy / Math.max(1f, dist) * 520f * dt;
