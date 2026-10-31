@@ -31,7 +31,10 @@ jobs:
         working-directory: android-game
         run: |
           set -o pipefail
-          gradle assembleRelease assembleDebug --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
+          gradle assembleRelease --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
+          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ouravex-a.apk"
+          gradle assembleDebug -PlowSdk=true --no-daemon --console=plain 2>&1 | tee -a "$RUNNER_TEMP/build.log"
+          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/ouravex-b.apk"
 
       - name: Save build log to ci-log branch
         if: always()
@@ -52,10 +55,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git checkout -f "${{ github.sha }}"
-          cp android-game/app/build/outputs/apk/release/app-release.apk ouravex.apk
-          cp android-game/app/build/outputs/apk/debug/app-debug.apk ouravex-debug.apk
+          cp "$RUNNER_TEMP/ouravex-a.apk" ouravex-a.apk
+          cp "$RUNNER_TEMP/ouravex-b.apk" ouravex-b.apk
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest ouravex.apk ouravex-debug.apk \
+          gh release create latest ouravex-a.apk ouravex-b.apk \
             --title "Ouravex (latest build)" \
-            --notes "Release APK (ouravex.apk) + debug APK, build #${{ github.run_number }}" \
+            --notes "A: release (icon). B: debug, minSdk 22 + permissions (zvuchar-like). Build #${{ github.run_number }}" \
             --target "${{ github.sha }}"
