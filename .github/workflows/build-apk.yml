@@ -2,6 +2,7 @@ name: Build APK
 
 on:
   push:
+    branches: [main]
     paths:
       - 'android-game/**'
       - '.github/workflows/build-apk.yml'
@@ -26,13 +27,31 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
+        shell: bash
         working-directory: android-game
-        run: gradle assembleDebug --no-daemon --stacktrace
+        run: |
+          set -o pipefail
+          gradle assembleDebug --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
+
+      - name: Save build log to ci-log branch
+        if: always()
+        shell: bash
+        run: |
+          tail -n 250 "$RUNNER_TEMP/build.log" > "$RUNNER_TEMP/short.log" || true
+          git config user.name "ci"
+          git config user.email "ci@users.noreply.github.com"
+          git checkout --orphan ci-log
+          git rm -rf --quiet . || true
+          cp "$RUNNER_TEMP/short.log" build.log
+          git add build.log
+          git commit -q -m "build log ${{ github.sha }}"
+          git push -f origin ci-log
 
       - name: Publish to release "latest"
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          git checkout -f "${{ github.sha }}"
           cp android-game/app/build/outputs/apk/debug/app-debug.apk ouravex.apk
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest ouravex.apk \
