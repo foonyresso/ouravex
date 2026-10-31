@@ -110,16 +110,22 @@ public class GameView extends View {
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         super.onSizeChanged(w, h, ow, oh);
         W = w; H = h; S = h / 400f;
-        bx[B_L] = 84 * S; by[B_L] = H - 72 * S; br[B_L] = 54 * S;
-        bx[B_R] = 204 * S; by[B_R] = H - 72 * S; br[B_R] = 54 * S;
-        float ax = W - 88 * S, ay = H - 84 * S;
-        bx[B_ATK] = ax; by[B_ATK] = ay; br[B_ATK] = 62 * S;
-        float[] ang = {188f, 222f, 256f, 290f};
+        // кнопки руху по краях екрана, навколо кожної кластер умінь
+        float lx = 78 * S, rx = W - 78 * S, yy = H - 74 * S;
+        bx[B_L] = lx; by[B_L] = yy; br[B_L] = 56 * S;
+        bx[B_R] = rx; by[B_R] = yy; br[B_R] = 56 * S;
+        // удар: ліворуч від правої кнопки
+        bx[B_ATK] = rx - 124 * S; by[B_ATK] = yy + 6 * S; br[B_ATK] = 46 * S;
+        // уміння 0,1 навколо лівої; 2,3 навколо правої
+        float[][] pos = {
+            {lx, 124 * S, 0f}, {lx, 112 * S, 312f},
+            {rx, 112 * S, 228f}, {rx, 124 * S, 270f}};
+        pos[0][2] = 358f; pos[3][2] = 270f;
         for (int i = 0; i < 4; i++) {
-            double a = Math.toRadians(ang[i]);
-            bx[B_SK + i] = ax + (float) Math.cos(a) * 124 * S;
-            by[B_SK + i] = ay + (float) Math.sin(a) * 124 * S;
-            br[B_SK + i] = 34 * S;
+            double a = Math.toRadians(pos[i][2]);
+            bx[B_SK + i] = pos[i][0] + (float) Math.cos(a) * pos[i][1];
+            by[B_SK + i] = yy + (float) Math.sin(a) * pos[i][1];
+            br[B_SK + i] = 32 * S;
         }
         bx[B_INT] = W * 0.5f; by[B_INT] = H - 64 * S; br[B_INT] = 44 * S;
         bx[B_PAUSE] = W - 30 * S; by[B_PAUSE] = 28 * S; br[B_PAUSE] = 20 * S;
