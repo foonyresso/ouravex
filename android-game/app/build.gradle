@@ -10,8 +10,8 @@ android {
         applicationId 'com.foonyresso.ouravex'
         minSdk project.hasProperty('lowSdk') ? 22 : 24
         targetSdk 34
-        versionCode 3
-        versionName '1.2'
+        versionCode((project.findProperty('vcode') ?: '3') as int)
+        versionName(project.findProperty('vname') ?: '1.2')
     }
 
     signingConfigs {

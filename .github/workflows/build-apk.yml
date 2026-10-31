@@ -26,15 +26,15 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build debug APK
+      - name: Build release APK
         shell: bash
         working-directory: android-game
         run: |
           set -o pipefail
-          gradle assembleRelease --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
+          VC=$((${{ github.run_number }} + 10))
+          gradle assembleRelease -Pvcode=$VC -Pvname=1.$VC --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ouravex-a.apk"
-          gradle assembleDebug -PlowSdk=true --no-daemon --console=plain 2>&1 | tee -a "$RUNNER_TEMP/build.log"
-          cp app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/ouravex-b.apk"
+          echo "{\"code\":$VC,\"name\":\"1.$VC\"}" > "$RUNNER_TEMP/version.json"
 
       - name: Save build log to ci-log branch
         if: always()
@@ -56,9 +56,9 @@ jobs:
         run: |
           git checkout -f "${{ github.sha }}"
           cp "$RUNNER_TEMP/ouravex-a.apk" ouravex-a.apk
-          cp "$RUNNER_TEMP/ouravex-b.apk" ouravex-b.apk
+          cp "$RUNNER_TEMP/version.json" version.json
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest ouravex-a.apk ouravex-b.apk \
+          gh release create latest ouravex-a.apk version.json \
             --title "Ouravex (latest build)" \
-            --notes "A: release, zvuchar key. B: debug, minSdk 22, zvuchar key. Build #${{ github.run_number }}" \
+            --notes "Auto-update source. Build #${{ github.run_number }}" \
             --target "${{ github.sha }}"

@@ -58,6 +58,7 @@ public class GameView extends View {
 
     public void onResumeGame() {
         audio.start();
+        Updater.check(getContext());
         audio.setMusic(screen == TITLE ? Audio.MUS_TITLE : (game.boss != null ? Audio.MUS_BOSS : Audio.MUS_STAGE));
         lastNanos = 0;
     }
@@ -256,6 +257,9 @@ public class GameView extends View {
                     selDiff = i; audio.play(Audio.CLICK, 0.7f);
                 }
             }
+            if (Updater.state == Updater.AVAILABLE || Updater.state == Updater.ERROR) {
+                if (in(x, y, 150 * s, 26 * s, 270 * s, 36 * s)) { Updater.start(getContext()); return; }
+            }
             if (in(x, y, W / 2f, 332 * s, 240 * s, 48 * s)) startRun();
         } else if (screen == PAUSE) {
             if (in(x, y, W / 2f - 130 * s, 340 * s, 220 * s, 46 * s)) {
@@ -331,6 +335,7 @@ public class GameView extends View {
         render.draw(c, game, W, H, S, uiT);
         if (screen == TITLE) {
             drawTitle(c);
+            drawUpdate(c);
         } else {
             drawHud(c);
             if (screen == PLAY && game.levelUpPending) drawLevelUp(c);
@@ -338,6 +343,19 @@ public class GameView extends View {
             else if (screen == DEAD) drawDead(c);
         }
         postInvalidateOnAnimation();
+    }
+
+    private void drawUpdate(Canvas c) {
+        int st = Updater.state;
+        if (st == Updater.IDLE) return;
+        String t;
+        int col = 0xFF4DFFB0;
+        if (st == Updater.AVAILABLE) t = "ОНОВЛЕННЯ " + Updater.name + " · ТОРКНИСЬ";
+        else if (st == Updater.DOWNLOADING) t = "Завантаження " + (int) (Updater.progress * 100) + "%";
+        else if (st == Updater.INSTALLING) t = "Встановлення…";
+        else { t = Updater.msg; col = 0xFFFF6A7A; }
+        panel(c, 150 * S, 26 * S, 270 * S, 36 * S, col, 0.18f);
+        txt(c, t, 150 * S, 31 * S, 11, col, Paint.Align.CENTER, true);
     }
 
     // ---------------- drawing helpers ----------------
