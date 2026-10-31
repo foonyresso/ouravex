@@ -1,0 +1,47 @@
+name: CapTest APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'captest/**'
+      - '.github/workflows/captest.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build Capacitor test APK
+        working-directory: captest
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          npx cap sync android
+          (cd android && ./gradlew --no-daemon assembleDebug)
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/captest.apk"
+
+      - name: Publish release captest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp "$RUNNER_TEMP/captest.apk" captest.apk
+          gh release delete captest --yes --cleanup-tag || true
+          gh release create captest captest.apk \
+            --title "CapTest" \
+            --notes "Capacitor hello-world, same toolchain as zvuchar" \
+            --target "${{ github.sha }}"

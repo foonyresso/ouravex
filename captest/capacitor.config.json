@@ -1,0 +1,8 @@
+{
+  "appId": "com.foonyresso.captest",
+  "appName": "CapTest",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
