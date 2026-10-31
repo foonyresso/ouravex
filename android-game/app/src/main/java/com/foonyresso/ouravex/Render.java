@@ -81,9 +81,9 @@ final class Render {
 
         drawGround(c, g, g.viewW, t);
         for (int i = 0; i < g.plats.size(); i++) {
-            Platform pl = g.plats.get(i);
-            if (pl.x + pl.w < g.camX - 50f || pl.x > g.camX + g.viewW + 50f || pl.y < g.camY - 50f || pl.y > g.camY + g.viewH + 50f) continue;
-            drawPlatform(c, g, pl);
+            Platform pf = g.plats.get(i);
+            if (pf.x + pf.w < g.camX - 50f || pf.x > g.camX + g.viewW + 50f || pf.y < g.camY - 50f || pf.y > g.camY + g.viewH + 50f) continue;
+            drawPlatform(c, g, pf);
         }
         drawPortal(c, g, t);
         for (int i = 0; i < g.chests.size(); i++) drawChest(c, g.chests.get(i), t);
