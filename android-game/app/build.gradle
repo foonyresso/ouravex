@@ -26,14 +26,23 @@ android {
         }
     }
 
+    signingConfigs {
+        zv {
+            storeFile file('../zv.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+
     buildTypes {
         debug {
-            signingConfig signingConfigs.ouravex
+            signingConfig signingConfigs.zv
         }
         release {
             minifyEnabled false
             debuggable false
-            signingConfig signingConfigs.ouravex
+            signingConfig signingConfigs.zv
         }
     }
 

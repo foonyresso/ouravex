@@ -60,5 +60,5 @@ jobs:
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest ouravex-a.apk ouravex-b.apk \
             --title "Ouravex (latest build)" \
-            --notes "A: release (icon). B: debug, minSdk 22 + permissions (zvuchar-like). Build #${{ github.run_number }}" \
+            --notes "A: release, zvuchar key. B: debug, minSdk 22, zvuchar key. Build #${{ github.run_number }}" \
             --target "${{ github.sha }}"
