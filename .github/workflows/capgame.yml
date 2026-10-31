@@ -1,0 +1,45 @@
+name: Game APK (Capacitor toolchain)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'capgame/**'
+      - 'android-game/app/src/**'
+      - '.github/workflows/capgame.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          bash capgame/build.sh 2>&1 | tee "$RUNNER_TEMP/capgame.log"
+
+      - name: Publish release ouravex-cap
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp capgame/out/ouravex-cap.apk ouravex-cap.apk
+          gh release delete ouravex-cap --yes --cleanup-tag || true
+          gh release create ouravex-cap ouravex-cap.apk \
+            --title "Ouravex (Capacitor toolchain)" \
+            --notes "Native Java game built in a Capacitor project, run #${{ github.run_number }}" \
+            --target "${{ github.sha }}"

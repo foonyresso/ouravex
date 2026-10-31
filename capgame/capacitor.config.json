@@ -1,0 +1,8 @@
+{
+  "appId": "com.foonyresso.ouravex",
+  "appName": "Ouravex",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}
