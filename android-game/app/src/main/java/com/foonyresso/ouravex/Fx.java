@@ -135,6 +135,7 @@ public final class Fx {
     }
 
     public void text(float px, float py, String s, int color, float size) {
+        size *= 2.1f;
         int i;
         if (tn < TMAX) i = tn++;
         else i = 0;

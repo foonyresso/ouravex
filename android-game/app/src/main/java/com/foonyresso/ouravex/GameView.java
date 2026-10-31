@@ -500,7 +500,7 @@ public class GameView extends View {
     private void txt(Canvas c, String s, float x, float y, float size, int col, Paint.Align al, boolean bold) {
         pt.setStyle(Paint.Style.FILL);
         pt.setTextAlign(al);
-        pt.setTextSize(size * S);
+        pt.setTextSize(size * S * ((screen == PLAY || screen == PAUSE) ? 1.3f : 1f));
         pt.setFakeBoldText(bold);
         pt.setColor(Render.a(0xFF000000, 0.55f * ((col >>> 24) / 255f)));
         c.drawText(s, x + 1.2f * S, y + 1.2f * S, pt);
@@ -658,14 +658,14 @@ public class GameView extends View {
         String ps;
         int pc = 0xFF7DF9FF;
         switch (game.portalState) {
-            case 0: ps = "ПОРТАЛ " + game.kills + "/" + game.killGoal; break;
+            case 0: ps = "ПОРТАЛ  " + game.kills + "/" + game.killGoal + "  ·  " + clock(game.stageTime) + "/" + clock(game.timeGoal); break;
             case 1: ps = "ПОРТАЛ ГОТОВИЙ"; pc = 0xFF4DFFB0; break;
             case 2: ps = "ДОБИЙ ЗАЛИШКИ!"; pc = 0xFFFF9A3C; break;
             case 3: ps = ""; break;
             default: ps = "ПОРТАЛ ВІДКРИТО"; pc = 0xFFFFD84A; break;
         }
         if (game.portalState == 0) {
-            bar(c, W / 2f - 80 * s, 26 * s, 160 * s, 7 * s, game.kills / (float) Math.max(1, game.killGoal), 0xFF7DF9FF);
+            bar(c, W / 2f - 80 * s, 26 * s, 160 * s, 7 * s, Math.min(game.kills / (float) Math.max(1, game.killGoal), game.stageTime / game.timeGoal), 0xFF7DF9FF);
             txt(c, ps, W / 2f, 46 * s, 11, pc, Paint.Align.CENTER, true);
         } else if (!ps.isEmpty()) {
             txt(c, ps, W / 2f, 36 * s, 14, pc, Paint.Align.CENTER, true);
@@ -746,15 +746,17 @@ public class GameView extends View {
             circleBtn(c, b, 0xFFB8C4FF, bDown[b], 0.10f);
             arrow(c, bx[b], by[b], br[b] * 0.8f, b == 0 ? -1 : 1, Render.a(0xFFFFFFFF, bDown[b] ? 1f : 0.7f));
         }
-        // dash charges
-        for (int i = 0; i < p.dashMax; i++) {
-            float frac = Math.max(0f, Math.min(1f, p.dashCharge - i));
-            float x = bx[B_L] - 30 * s + i * 17 * s, y = by[B_L] - br[B_L] - 14 * s;
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(0xFF000000, 0.5f));
-            c.drawCircle(x, y, 6 * s, pt);
-            pt.setColor(frac >= 1f ? 0xFF7DF9FF : Render.a(0xFF7DF9FF, 0.35f));
-            c.drawCircle(x, y, 6 * s * (0.3f + 0.7f * frac), pt);
+        // заряди ривка: смужка по центру внизу
+        {
+            int n = p.dashMax;
+            float segW = 34 * s, gap = 5 * s, tw = n * segW + (n - 1) * gap;
+            float x0 = W / 2f - tw / 2f - 14 * s, y0 = H - 22 * s;
+            for (int i = 0; i < n; i++) {
+                float frac = Math.max(0f, Math.min(1f, p.dashCharge - i));
+                float xx = x0 + i * (segW + gap);
+                bar(c, xx, y0, segW, 9 * s, frac, frac >= 1f ? 0xFF7DF9FF : 0xFF3A8FB0);
+            }
+            txt(c, "x" + (int) Math.floor(p.dashCharge + 0.001f), x0 + tw + 22 * s, y0 + 9 * s, 16, 0xFF7DF9FF, Paint.Align.CENTER, true);
         }
         if (bDown[B_L] && bDown[B_R] && !bSwiped[B_L] && !bSwiped[B_R]) {
             txt(c, "ЗАРЯДКА", (bx[B_L] + bx[B_R]) / 2f, by[B_L] - br[B_L] - 20 * s, 11, cc, Paint.Align.CENTER, true);

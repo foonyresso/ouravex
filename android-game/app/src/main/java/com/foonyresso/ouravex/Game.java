@@ -43,6 +43,7 @@ final class Game {
     final ArrayList<Chest> chests = new ArrayList<>();
     final Random rnd = new Random();
 
+    float timeGoal;
     int diff, stage, kills, killGoal, totalKills, bossesKilled;
     float runTime, stageTime, time;
     int portalState;
@@ -82,7 +83,8 @@ final class Game {
     void startStage() {
         stage++;
         stageTime = 0; kills = 0;
-        killGoal = 15 + stage * 4;
+        killGoal = 22 + stage * 6;
+        timeGoal = 240f + 180f * (1f - (float) Math.pow(0.7, stage - 1));
         enemies.clear(); projs.clear(); teles.clear(); bursts.clear(); drops.clear();
         plats.clear(); chests.clear();
         boss = null; portalState = 0; despawnT = 0; bossIntro = 0;
@@ -195,14 +197,14 @@ final class Game {
         e.face = p.x >= x ? 1 : -1;
         switch (type) {
             case Ent.GRUNT:
-                e.w = 14f; e.h = 46f; e.hp = 38f; e.dmg = 9f; e.speed = 100f + rnd.nextFloat() * 25f;
+                e.w = 14f; e.h = 46f; e.hp = 38f; e.dmg = 9f; e.speed = 170f + rnd.nextFloat() * 110f;
                 break;
             case Ent.FLYER:
-                e.w = 15f; e.h = 30f; e.hp = 26f; e.dmg = 8f; e.speed = 130f;
+                e.w = 15f; e.h = 30f; e.hp = 26f; e.dmg = 8f; e.speed = 230f + rnd.nextFloat() * 70f;
                 e.a1 = rnd.nextBoolean() ? 1f : -1f;
                 break;
             default:
-                e.w = 27f; e.h = 76f; e.hp = 130f; e.dmg = 20f; e.speed = 70f;
+                e.w = 27f; e.h = 76f; e.hp = 130f; e.dmg = 20f; e.speed = 120f + rnd.nextFloat() * 40f;
                 e.armor = 1f; e.kbResist = 0.65f;
                 break;
         }
@@ -248,6 +250,21 @@ final class Game {
 
     // ---------------- combat ----------------
 
+    private void shockwave(Enemy src, float dir, int color) {
+        fx.ring(src.x, src.y - src.h * 0.5f, 10f, 230f, 0.32f, color);
+        for (int i = 0; i < enemies.size(); i++) {
+            Enemy t = enemies.get(i);
+            if (t == src || t.hp <= 0f || t.spawnT > 0f || t.boss) continue;
+            float dx = t.x - src.x, dy = t.y - src.y;
+            if (dx * dx + dy * dy > 230f * 230f) continue;
+            float sg = dx >= 0f ? 1f : -1f;
+            float kr = 1f - t.kbResist;
+            t.vx += sg * 320f * kr;
+            t.vy -= 140f * kr;
+            t.stun = Math.max(t.stun, 0.3f);
+        }
+    }
+
     void hitEnemy(Enemy e, float baseDmg, float kbX, float kbY, float stun, int power, float dir, int color) {
         if (e.hp <= 0f) return;
         boolean crit = rnd.nextFloat() < p.critChance();
@@ -266,6 +283,7 @@ final class Game {
             else if (e.armor > 0f) stun *= 0.6f;
             e.stun = Math.max(e.stun, stun);
         }
+        if (power == 2) shockwave(e, dir, color);
         float cx = e.x - dir * e.w * 0.3f, cy = e.y - e.h * (0.35f + rnd.nextFloat() * 0.35f);
         float pw = power == 0 ? 0.3f : (power == 1 ? 0.65f : (power == 2 ? 1f : 0.15f));
         fx.hit(cx, cy, dir, pw, crit ? 0xFFFFF04D : color);
@@ -328,11 +346,6 @@ final class Game {
         }
         if (!e.boss) {
             kills++;
-            if (portalState == 0 && kills >= killGoal) {
-                portalState = 1;
-                flashBanner("ПОРТАЛ ЗАРЯДЖЕНО!", 0xFF4DFFB0);
-                audio.play(Audio.LEVELUP, 0.7f);
-            }
         }
         totalKills++;
         float xp = e.boss ? 260f : (e.type == Ent.BRUTE ? 30f : (e.type == Ent.FLYER ? 12f : 10f));
@@ -598,6 +611,11 @@ final class Game {
         if (p.st != Player.ST_DEAD && ctl.interactReq) interact();
         if (p.st != Player.ST_FREE && p.st != Player.ST_CHARGE) audio.setCharging(false, 0f);
 
+        if (portalState == 0 && kills >= killGoal && stageTime >= timeGoal) {
+            portalState = 1;
+            flashBanner("ПОРТАЛ ЗАРЯДЖЕНО!", 0xFF4DFFB0);
+            audio.play(Audio.LEVELUP, 0.7f);
+        }
         // spawn director
         if (portalState < 2 && p.st != Player.ST_DEAD) {
             spawnT -= dt;

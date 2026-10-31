@@ -27,7 +27,7 @@ final class Player {
     float xp;
     float str, vit, agi, spi, luk;
     float dmgCard, regenCard, dashCdCard = 1f, kiEffCard = 1f, hpPct;
-    int dashMax = 1;
+    int dashMax = 2;
     final int[] items = new int[Data.ITEMS];
     final boolean[] unlocked = new boolean[4];
     final int[] skLvl = new int[4];
@@ -69,7 +69,7 @@ final class Player {
         this.cls = cls;
         str = BASE_STAT[cls * 5]; vit = BASE_STAT[cls * 5 + 1]; agi = BASE_STAT[cls * 5 + 2];
         spi = BASE_STAT[cls * 5 + 3]; luk = BASE_STAT[cls * 5 + 4];
-        level = 1; xp = 0; dmgCard = 0; regenCard = 0; dashCdCard = 1f; kiEffCard = 1f; hpPct = 0; dashMax = 1;
+        level = 1; xp = 0; dmgCard = 0; regenCard = 0; dashCdCard = 1f; kiEffCard = 1f; hpPct = 0; dashMax = 2;
         for (int i = 0; i < items.length; i++) items[i] = 0;
         for (int i = 0; i < 4; i++) { unlocked[i] = false; skLvl[i] = 0; skCd[i] = 0; bufSkill[i] = 0; }
         transformed = false;
@@ -91,7 +91,7 @@ final class Player {
         return m;
     }
     float defense() { return vit * 1.5f + items[7] * 8f; }
-    float moveSpeed() { return 250f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f); }
+    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f); }
     float aspd() { return (1f + agi * 0.015f + items[3] * 0.03f) * (transformed ? 1.25f : 1f); }
     float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f; }
     float critMul() { return 1.6f + items[8] * 0.08f; }
@@ -100,11 +100,11 @@ final class Player {
     float hpRegen() { return 0.5f + vit * 0.05f + regenCard; }
     float chargeRate() { return 28f * (1f + spi * 0.04f); }
     float dashCd() {
-        float c = 0.6f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f);
+        float c = 1.5f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f);
         if (transformed) c *= 0.6f;
         return Math.max(0.15f, c);
     }
-    float dashDist() { return 200f * (1f + items[10] * 0.06f); }
+    float dashDist() { return 420f * (1f + items[10] * 0.06f); }
     float xpNeed() { return 40f + level * 28f; }
     float skillCost(int i) {
         float base = Data.SKILL_COST[cls][i];
@@ -148,7 +148,7 @@ final class Player {
     void update(float dt) {
         Game.Ctl c = g.ctl;
         if (st == ST_DEAD) {
-            vy += Game.GRAV * dt;
+            vy += Game.GRAV * 1.3f * dt;
             y += vy * dt;
             if (y > 0) { y = 0; vy = 0; }
             Rig.copy(pose, Rig.HURT);
@@ -207,7 +207,7 @@ final class Player {
         }
 
         // physics
-        if (gravity) vy += Game.GRAV * dt;
+        if (gravity) vy += Game.GRAV * 1.3f * dt;
         float py0 = y;
         x += vx * dt;
         y += vy * dt;
@@ -270,9 +270,9 @@ final class Player {
         float sp = moveSpeed();
         if (dir != 0) {
             face = dir;
-            vx = approach(vx, dir * sp, (ground ? 3400f : 2000f) * dt);
+            vx = approach(vx, dir * sp, (ground ? 6500f : 3600f) * dt);
         } else {
-            vx = approach(vx, 0f, (ground ? 4200f : 500f) * dt);
+            vx = approach(vx, 0f, (ground ? 7000f : 900f) * dt);
         }
         if (ground && Math.abs(vx) > 150f) {
             idleT -= dt;
@@ -282,7 +282,7 @@ final class Player {
 
     boolean tryJump(int dir) {
         if (ground || coyote > 0f) {
-            vy = -570f * (transformed ? 1.05f : 1f);
+            vy = -900f * (transformed ? 1.05f : 1f);
             vx = dir * moveSpeed() * 1.05f;
             if (dir != 0) face = dir;
             ground = false; coyote = 0f; lastJumpT = 0f;
@@ -292,7 +292,7 @@ final class Player {
         }
         if (airJumps < 1) {
             airJumps++;
-            vy = -520f;
+            vy = -800f;
             if (dir != 0) { vx = dir * moveSpeed() * 1.05f; face = dir; }
             lastJumpT = 0f;
             g.fx.ring(x, y - 6f, 6f, 36f, 0.22f, color());
