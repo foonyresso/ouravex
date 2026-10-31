@@ -1,0 +1,51 @@
+name: Emulator install test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  emu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download APKs from releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p apks
+          gh release download latest -p 'ouravex-*.apk' -D apks || true
+          gh release download captest -p captest.apk -D apks || true
+          gh release download ouravex-cap -p ouravex-cap.apk -D apks || true
+          ls -la apks
+
+      - name: Run tests in emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash emutest/run.sh
+
+      - name: Publish report to release emu-report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete emu-report --yes --cleanup-tag || true
+          gh release create emu-report emutest/out/* \
+            --title "Emulator report" \
+            --notes "Install/launch test on Android 34 emulator, run #${{ github.run_number }}" \
+            --target "${{ github.sha }}"
