@@ -46,6 +46,10 @@ android {
         }
     }
 
+    sourceSets {
+        main { java.srcDirs = ['src/host/java'] }
+    }
+
     lint {
         abortOnError false
         checkReleaseBuilds false

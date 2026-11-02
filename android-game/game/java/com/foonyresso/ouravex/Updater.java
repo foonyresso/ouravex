@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.net.Uri;
 import android.os.Build;
@@ -33,22 +32,24 @@ public final class Updater {
 
     private Updater() {}
 
-    @SuppressWarnings("deprecation")
-    private static int localCode(Context c) {
-        try {
-            PackageInfo pi = c.getPackageManager().getPackageInfo(c.getPackageName(), 0);
-            return Build.VERSION.SDK_INT >= 28 ? (int) pi.getLongVersionCode() : pi.versionCode;
-        } catch (Exception e) { return 0; }
+    private static boolean apkMode;
+    private static String dexSha = "";
+    private static int remoteCode;
+    private static Context hostCtx;
+
+    private static int sysInt(String k) {
+        try { return Integer.parseInt(System.getProperty(k, "0")); } catch (Exception e) { return 0; }
     }
 
     public static void check(final Context ctx) {
         if (checked) return;
         checked = true;
+        hostCtx = ctx;
         final Context c = ctx.getApplicationContext();
         new Thread(new Runnable() {
             public void run() {
                 try {
-                    HttpURLConnection h = open(BASE + "version.json");
+                    HttpURLConnection h = open(BASE + "game.json");
                     InputStream in = h.getInputStream();
                     java.io.ByteArrayOutputStream bo = new java.io.ByteArrayOutputStream();
                     byte[] b = new byte[4096];
@@ -56,7 +57,10 @@ public final class Updater {
                     while ((n = in.read(b)) > 0) bo.write(b, 0, n);
                     in.close();
                     JSONObject j = new JSONObject(bo.toString("UTF-8"));
-                    if (j.getInt("code") > localCode(c)) {
+                    remoteCode = j.getInt("code");
+                    dexSha = j.optString("sha", "");
+                    apkMode = j.optInt("minHost", 1) > Math.max(1, sysInt("ouravex.hostapi"));
+                    if (remoteCode > sysInt("ouravex.gamecode")) {
                         name = j.optString("name", "");
                         state = AVAILABLE;
                     }
@@ -75,9 +79,65 @@ public final class Updater {
         return h;
     }
 
+    private static void startDex(final Context ctx) {
+        final Context c = ctx.getApplicationContext();
+        state = DOWNLOADING;
+        progress = 0f;
+        new Thread(new Runnable() {
+            public void run() {
+                try {
+                    File dir = new File(c.getFilesDir(), "gamedex");
+                    dir.mkdirs();
+                    File tmp = new File(dir, "tmp.part");
+                    HttpURLConnection h = open(BASE + "game.dex");
+                    long total = h.getContentLength();
+                    InputStream in = h.getInputStream();
+                    OutputStream o = new FileOutputStream(tmp);
+                    java.security.MessageDigest md = java.security.MessageDigest.getInstance("SHA-256");
+                    byte[] b = new byte[16384];
+                    long got = 0;
+                    int n;
+                    while ((n = in.read(b)) > 0) {
+                        o.write(b, 0, n);
+                        md.update(b, 0, n);
+                        got += n;
+                        if (total > 0) progress = got / (float) total;
+                    }
+                    o.close(); in.close();
+                    StringBuilder sb = new StringBuilder();
+                    for (byte x : md.digest()) sb.append(String.format("%02x", x));
+                    if (dexSha.length() > 0 && !sb.toString().equals(dexSha)) {
+                        tmp.delete();
+                        msg = "Файл оновлення пошкоджено";
+                        state = ERROR;
+                        return;
+                    }
+                    File dst = new File(dir, "game-" + remoteCode + ".dex");
+                    if (dst.exists()) { dst.setWritable(true); dst.delete(); }
+                    tmp.renameTo(dst);
+                    dst.setReadOnly();
+                    state = INSTALLING;
+                    final Context act = hostCtx;
+                    if (act instanceof android.app.Activity) {
+                        ((android.app.Activity) act).runOnUiThread(new Runnable() {
+                            public void run() {
+                                try { act.getClass().getMethod("reloadGame").invoke(act); }
+                                catch (Throwable t) { msg = "Перезапусти гру"; state = ERROR; }
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    msg = "Помилка завантаження";
+                    state = ERROR;
+                }
+            }
+        }).start();
+    }
+
     public static void start(final Context ctx) {
         final Context c = ctx.getApplicationContext();
         if (state != AVAILABLE && state != ERROR) return;
+        if (!apkMode) { startDex(ctx); return; }
         if (Build.VERSION.SDK_INT >= 26 && !c.getPackageManager().canRequestPackageInstalls()) {
             msg = "Дозволь встановлення з цієї гри й торкнись знову";
             state = ERROR;

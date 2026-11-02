@@ -26,15 +26,26 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Build release APK
+      - name: Build game.dex and APK
         shell: bash
-        working-directory: android-game
         run: |
           set -o pipefail
-          VC=$((${{ github.run_number }} + 10))
-          gradle assembleRelease -Pvcode=$VC -Pvname=1.$VC --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/build.log"
-          cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ouravex-a.apk"
-          echo "{\"code\":$VC,\"name\":\"1.$VC\"}" > "$RUNNER_TEMP/version.json"
+          {
+            VC=$((${{ github.run_number }} + 10))
+            AJ=$ANDROID_HOME/platforms/android-34/android.jar
+            BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+            mkdir -p "$RUNNER_TEMP/cls" "$RUNNER_TEMP/dexout"
+            javac --release 11 -encoding UTF-8 -cp "$AJ" -d "$RUNNER_TEMP/cls" $(find android-game/game -name '*.java')
+            $BT/d8 --lib "$AJ" --min-api 24 --output "$RUNNER_TEMP/dexout" $(find "$RUNNER_TEMP/cls" -name '*.class')
+            cp "$RUNNER_TEMP/dexout/classes.dex" "$RUNNER_TEMP/game.dex"
+            SHA=$(sha256sum "$RUNNER_TEMP/game.dex" | cut -d' ' -f1)
+            echo "{\"code\":$VC,\"name\":\"1.$VC\",\"minHost\":1,\"sha\":\"$SHA\"}" > "$RUNNER_TEMP/game.json"
+            mkdir -p android-game/app/src/main/assets
+            cp "$RUNNER_TEMP/game.dex" "$RUNNER_TEMP/game.json" android-game/app/src/main/assets/
+            cd android-game
+            gradle assembleRelease -Pvcode=$VC -Pvname=1.$VC --no-daemon --console=plain
+            cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/ouravex-a.apk"
+          } 2>&1 | tee "$RUNNER_TEMP/build.log"
 
       - name: Save build log to ci-log branch
         if: always()
@@ -56,9 +67,10 @@ jobs:
         run: |
           git checkout -f "${{ github.sha }}"
           cp "$RUNNER_TEMP/ouravex-a.apk" ouravex-a.apk
-          cp "$RUNNER_TEMP/version.json" version.json
+          cp "$RUNNER_TEMP/game.json" game.json
+          cp "$RUNNER_TEMP/game.dex" game.dex
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest ouravex-a.apk version.json \
+          gh release create latest ouravex-a.apk game.dex game.json \
             --title "Ouravex (latest build)" \
             --notes "Auto-update source. Build #${{ github.run_number }}" \
             --target "${{ github.sha }}"
