@@ -20,7 +20,7 @@ final class Skills {
             return false;
         }
         p.ki -= cost;
-        p.skCd[i] = Data.SKILL_CD[p.cls][i];
+        p.skCd[i] = p.skCdMax(i);
         p.st = Player.ST_SKILL;
         p.stT = 0f;
         p.skill = i;
@@ -100,6 +100,7 @@ final class Skills {
     static boolean update(Player p, float dt) {
         p.blendK = 40f;
         if (p.skill == 3) return transUpdate(p, dt);
+        if (p.skill >= 4) return newSkill(p, dt);
         if (p.cls == 0) {
             switch (p.skill) {
                 case 0: return blitz(p, dt);
@@ -111,6 +112,150 @@ final class Skills {
             case 0: return orb(p, dt);
             case 1: return beam(p, dt);
             default: return rain(p, dt);
+        }
+    }
+
+    // ---------------- нові вміння (4..6) ----------------
+
+    private static void areaHit(Player p, float radius, float dmg, float kbX, float kbY, float stun, int power) {
+        Game g = p.g;
+        for (int j = 0; j < g.enemies.size(); j++) {
+            Enemy e = g.enemies.get(j);
+            if (e.hp <= 0f || e.spawnT > 0f) continue;
+            float dx = e.x - p.x, dy = (e.y - e.h * 0.5f) - (p.y - 40f);
+            if (dx * dx + dy * dy > radius * radius) continue;
+            float s = dx >= 0f ? 1f : -1f;
+            g.hitEnemy(e, dmg, s * kbX, kbY, stun, power, s, p.color());
+        }
+    }
+
+    private static boolean newSkill(Player p, float dt) {
+        Game g = p.g;
+        int col = p.color();
+        float mul;
+        if (p.cls == 0) {
+            if (p.skill == 4) {            // Вихор
+                mul = p.skMul(4);
+                p.vx = Player.approach(p.vx, 0f, 3000f * dt);
+                p.invuln = Math.max(p.invuln, 0.12f);
+                if (p.skI < 8 && p.stT >= p.skNext) {
+                    p.skI++;
+                    p.skNext += 0.1f;
+                    p.face = -p.face;
+                    areaHit(p, 170f, 6.5f * mul, 220f, -90f, 0.2f, 1);
+                    g.fx.ring(p.x, p.y - 40f, 20f, 170f, 0.22f, col);
+                    g.fx.sparks(p.x, p.y - 40f, 6, 420f, 0.3f, 3f, col, 0f, 0f, 1.6f);
+                    g.audio.play(Audio.WHOOSH, 0.5f);
+                    g.shake(0.08f);
+                }
+                if (p.stT >= 0.95f) end(p);
+                return true;
+            } else if (p.skill == 5) {      // Підйом дракона
+                mul = p.skMul(5);
+                p.vx = p.face * 60f;
+                if (p.skStage == 0 && p.stT >= 0.03f) {
+                    p.skStage = 1;
+                    p.vy = -880f;
+                    p.ground = false;
+                    for (int j = 0; j < g.enemies.size(); j++) {
+                        Enemy e = g.enemies.get(j);
+                        if (e.hp <= 0f || e.spawnT > 0f) continue;
+                        float dx = (e.x - p.x) * p.face;
+                        if (dx > -40f && dx < 150f && e.y - p.y > -170f && e.y - p.y < 60f)
+                            g.hitEnemy(e, 17f * mul, p.face * 100f, -560f, 0.7f, 2, p.face, col);
+                    }
+                    g.fx.ring(p.x, p.y - 20f, 10f, 120f, 0.3f, col);
+                    g.fx.sparks(p.x, p.y - 30f, 14, 520f, 0.35f, 3.5f, col, 0f, -1f, 1.2f);
+                    g.audio.play(Audio.SLAM, 0.7f);
+                    g.shake(0.3f);
+                }
+                if (p.skStage == 1 && p.stT >= 0.3f) {
+                    p.skStage = 2;
+                    areaHit(p, 190f, 12f * mul, 160f, -300f, 0.5f, 2);
+                    g.fx.explosion(p.x, p.y - 50f, 70f, col);
+                    g.audio.play(Audio.EXPLODE, 0.6f);
+                }
+                if (p.stT >= 0.6f) end(p);
+                return true;
+            } else {                         // Метеорний удар
+                mul = p.skMul(6);
+                if (p.skStage == 0) {
+                    p.vy = -520f; p.vx = p.face * 220f;
+                    if (p.stT >= 0.16f) { p.skStage = 1; p.vy = 1500f; p.vx = p.face * 380f; g.audio.play(Audio.WHOOSH, 0.8f); }
+                } else {
+                    p.vy = Math.max(p.vy, 1500f);
+                    g.fx.add(Fx.SPARK, p.x, p.y - 30f, 0f, -300f, 0.25f, 4f, 0f, col, 0f, 0f);
+                    if (p.ground || p.stT > 1.2f) {
+                        areaHit(p, 230f, 24f * mul, 380f, -380f, 0.8f, 2);
+                        g.fx.explosion(p.x, -10f, 170f, col);
+                        g.fx.ring(p.x, p.y - 10f, 20f, 260f, 0.4f, 0xFFFFFFFF);
+                        g.audio.play(Audio.SLAM, 1f);
+                        g.shake(0.8f);
+                        g.stop(0.08f);
+                        end(p);
+                    }
+                }
+                return true;
+            }
+        }
+        // Рей
+        if (p.skill == 4) {                  // Нова
+            mul = p.skMul(4);
+            p.vx = Player.approach(p.vx, 0f, 2000f * dt);
+            if (p.skStage == 0) {
+                converge(p, 1f);
+                if (p.stT >= 0.3f) {
+                    p.skStage = 1;
+                    for (int i = 0; i < 14; i++) {
+                        float a = i * 6.2832f / 14f;
+                        g.newProj(2, p.x, p.y - 50f, (float) Math.cos(a) * 520f, (float) Math.sin(a) * 520f, 8f,
+                                11f * mul, 1.2f, 55f, col, false);
+                    }
+                    g.fx.ring(p.x, p.y - 50f, 10f, 220f, 0.35f, col);
+                    g.fx.flash(p.x, p.y - 50f, 30f, 120f, 0.2f, 0xFFFFFFFF);
+                    g.audio.play(Audio.BLAST, 0.9f);
+                    g.shake(0.3f);
+                }
+            } else if (p.stT >= 0.5f) end(p);
+            return true;
+        } else if (p.skill == 5) {           // Віяло
+            mul = p.skMul(5);
+            p.vx = Player.approach(p.vx, 0f, 2000f * dt);
+            if (p.skI < 3 && p.stT >= p.skNext) {
+                p.skI++;
+                p.skNext += 0.13f;
+                float x = hx(p), y = hy(p);
+                float base = p.aimAngle(x, y);
+                for (int i = -2; i <= 2; i++) {
+                    float a = base + i * 0.17f;
+                    g.newProj(2, x, y, (float) Math.cos(a) * 640f, (float) Math.sin(a) * 640f, 8f, 9f * mul, 1.1f, 45f, col, false);
+                }
+                g.fx.flash(x, y, 18f, 4f, 0.08f, 0xFFFFFFFF);
+                g.audio.play(Audio.SHOOT, 0.6f);
+            }
+            if (p.skI >= 3 && p.stT >= p.skNext + 0.1f) end(p);
+            return true;
+        } else {                             // Небесний залп
+            mul = p.skMul(6);
+            p.vx = Player.approach(p.vx, 0f, 2000f * dt);
+            if (p.skStage == 0 && p.stT >= 0.2f) {
+                p.skStage = 1;
+                int n = 0;
+                for (int j = 0; j < g.enemies.size() && n < 5; j++) {
+                    Enemy e = g.enemies.get(j);
+                    if (e.hp <= 0f || e.spawnT > 0f) continue;
+                    float dx = e.x - p.x, dy = e.y - p.y;
+                    if (dx * dx + dy * dy > 700f * 700f) continue;
+                    n++;
+                    g.newProj(2, e.x, e.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, false);
+                    g.fx.ring(e.x, e.y - e.h, 6f, 50f, 0.3f, col);
+                }
+                if (n == 0) for (int i = -2; i <= 2; i++)
+                    g.newProj(2, p.x + p.face * 220f + i * 90f, p.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, false);
+                g.audio.play(Audio.SHOOT, 0.8f);
+            }
+            if (p.stT >= 0.5f) end(p);
+            return true;
         }
     }
 
@@ -413,6 +558,13 @@ final class Skills {
                     int m = p.skI & 3;
                     Rig.copy(tgt, m == 0 ? Rig.PUNCH1_H : (m == 1 ? Rig.PUNCH2_H : (m == 2 ? Rig.KICK1_H : Rig.PUNCH2_H)));
                 } else Rig.copy(tgt, Rig.CAST);
+                break;
+            case 4: case 5: case 6:
+                if (p.cls == 0) {
+                    if (p.skill == 4) Rig.copy(tgt, (p.skI & 1) == 1 ? Rig.KICK1_H : Rig.KICK2_H);
+                    else if (p.skill == 5) Rig.copy(tgt, Rig.UPPER_H);
+                    else Rig.copy(tgt, p.skStage == 0 ? Rig.SLAM_UP : Rig.SLAM_DN);
+                } else Rig.copy(tgt, p.skill == 4 && p.skStage == 0 ? Rig.CHARGE : Rig.CAST);
                 break;
             default:
                 Rig.copy(tgt, Rig.CHARGE);

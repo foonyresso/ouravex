@@ -887,7 +887,7 @@ public class GameView extends View {
             circleBtn(c, b, col, bDown[b], noKi || cd ? 0.06f : 0.18f);
             glyphSkill(c, p.cls, i, bx[b], by[b], br[b] * 0.55f, noKi ? Render.a(col, 0.4f) : col);
             if (cd) {
-                float frac = Math.min(1f, p.skCd[i] / Data.SKILL_CD[p.cls][i]);
+                float frac = Math.min(1f, p.skCd[i] / p.skCdMax(i));
                 rf.set(bx[b] - br[b], by[b] - br[b], bx[b] + br[b], by[b] + br[b]);
                 pt.setStyle(Paint.Style.FILL);
                 pt.setColor(0xAA000000);
@@ -962,6 +962,18 @@ public class GameView extends View {
             pt.setStyle(Paint.Style.FILL);
             pt.setColor(col);
             c.drawPath(path, pt);
+            return;
+        }
+        if (slot >= 4) {
+            // нові вміння: проста емблема з кількох променів
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(col);
+            int rays = slot + 1;
+            for (int i = 0; i < rays; i++) {
+                double a = i * 6.2832 / rays - 1.5708;
+                ln(c, x, y, x + (float) Math.cos(a) * r, y + (float) Math.sin(a) * r, col, w);
+            }
+            c.drawCircle(x, y, r * 0.3f, pt);
             return;
         }
         if (cls == 0) {
@@ -1204,9 +1216,9 @@ public class GameView extends View {
             c.drawCircle(cx, 134 * s, 26 * s, pt);
             glyphSkill(c, p.cls, sk, cx, 134 * s, 15 * s, col);
             txt(c, Data.SKILL_NAME[p.cls][sk], cx, 178 * s, 12, col, Paint.Align.CENTER, true);
-            txt(c, "Рівень " + (p.skLvl[sk] + 1) + " / 5", cx, 194 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
+            txt(c, "Рівень " + (p.skLvl[sk] + 1) + " / 5" + (p.skBr[sk] == 1 ? "  [Міць]" : (p.skBr[sk] == 2 ? "  [Швидк.]" : "")), cx, 194 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
             wrapText(c, Data.SKILL_DESC[p.cls][sk], cx, 214 * s, cw - 16 * s, 10, 0xFFB8C4FF);
-            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", Data.SKILL_CD[p.cls][sk]) + " с", cx, 290 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
+            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", p.skCdMax(sk)) + " с", cx, 290 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
         }
         txt(c, "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 326 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
     }

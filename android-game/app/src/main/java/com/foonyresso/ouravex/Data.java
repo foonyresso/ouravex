@@ -19,16 +19,21 @@ public final class Data {
 
     // ---- skills ----
     public static final String[][] SKILL_NAME = {
-            {"Блискавичний прорив", "Удар землі", "Шквал ударів", "Режим люті"},
-            {"Куля енергії", "Хвиля Ki", "Дощ куль", "Режим люті"}};
+            {"Блискавичний прорив", "Удар землі", "Шквал ударів", "Режим люті", "Вихор", "Підйом дракона", "Метеорний удар"},
+            {"Куля енергії", "Хвиля Ki", "Дощ куль", "Режим люті", "Нова", "Віяло", "Небесний залп"}};
     public static final String[][] SKILL_DESC = {
             {"Серія телепортів крізь ворогів з ударами", "Удар по землі, хвиля навколо",
-                    "Шквал швидких ударів перед собою", "Більше шкоди, швидкість і деші"},
+                    "Шквал швидких ударів перед собою", "Більше шкоди, швидкість і деші",
+                    "Обертання з ударами по всіх навколо", "Різкий удар угору з підкиданням ворогів",
+                    "Стрибок і падіння з вибухом на землі"},
             {"Велика куля з вибухом", "Потужний промінь ki",
-                    "Залп самонавідних куль", "Більше шкоди, швидкість і деші"}};
-    public static final int[][] SKILL_COST = {{20, 30, 40, 50}, {20, 45, 35, 50}};
-    public static final float[][] SKILL_CD = {{1.6f, 3.2f, 5f, 4f}, {1.2f, 5.5f, 4.5f, 4f}};
-    public static final int[] SKILL_COL = {0xFFFF4DDB, 0xFFFFB02E, 0xFF4DFFB0, 0xFFFFD84A};
+                    "Залп самонавідних куль", "Більше шкоди, швидкість і деші",
+                    "Кільце куль на всі боки", "Віяло куль перед собою",
+                    "Кулі падають згори на найближчих ворогів"}};
+    public static final int[][] SKILL_COST = {{20, 30, 40, 50, 28, 25, 35}, {20, 45, 35, 50, 30, 28, 38}};
+    public static final float[][] SKILL_CD = {{1.6f, 3.2f, 5f, 4f, 4.5f, 3.5f, 6f}, {1.2f, 5.5f, 4.5f, 4f, 5f, 3.5f, 6.5f}};
+    public static final int[] SKILL_COL = {0xFFFF4DDB, 0xFFFFB02E, 0xFF4DFFB0, 0xFFFFD84A, 0xFFFF6A3C, 0xFF7DF9FF, 0xFFB06BFF};
+    public static final int NSK = 7;
 
     // ---- items ----
     public static final int ITEMS = 12;
@@ -47,13 +52,25 @@ public final class Data {
             0xFFB8C4FF, 0xFFFFE27A, 0xFFE0502A, 0xFFB06BFF, 0xFFFFD84A};
 
     // ---- cards ----
-    public static final int CARDS = 19;
+    public static final int CARDS = 40;
+    public static final int C_UNL4 = 19, C_UPG4 = 22, C_XP = 25, C_BRA = 26, C_BRB = 33;
+
+    public static int unlSkill(int id) { return id >= C_UNL0 && id <= C_UNLT ? id - C_UNL0 : (id >= C_UNL4 && id < C_UNL4 + 3 ? id - C_UNL4 + 4 : -1); }
+    public static int upgSkill(int id) { return id >= C_UPG0 && id <= C_UPGT ? id - C_UPG0 : (id >= C_UPG4 && id < C_UPG4 + 3 ? id - C_UPG4 + 4 : -1); }
+    public static int braSkill(int id) { return id >= C_BRA && id < C_BRA + 7 ? id - C_BRA : -1; }
+    public static int brbSkill(int id) { return id >= C_BRB && id < C_BRB + 7 ? id - C_BRB : -1; }
     public static final int C_STR = 0, C_VIT = 1, C_AGI = 2, C_SPI = 3, C_LUK = 4,
             C_UNL0 = 5, C_UNL1 = 6, C_UNL2 = 7, C_UNLT = 8,
             C_UPG0 = 9, C_UPG1 = 10, C_UPG2 = 11, C_UPGT = 12,
             C_REGEN = 13, C_DASHCD = 14, C_KIEFF = 15, C_DMG = 16, C_DASH2 = 17, C_HP = 18;
 
     public static String cardTitle(int id, int cls) {
+        int k;
+        if ((k = unlSkill(id)) >= 0) return SKILL_NAME[cls][k];
+        if ((k = upgSkill(id)) >= 0) return SKILL_NAME[cls][k] + " +";
+        if ((k = braSkill(id)) >= 0) return SKILL_NAME[cls][k] + ": Міць";
+        if ((k = brbSkill(id)) >= 0) return SKILL_NAME[cls][k] + ": Швидкість";
+        if (id == C_XP) return "Слоти зайняті";
         switch (id) {
             case C_STR: return "+2 Сила";
             case C_VIT: return "+2 Живучість";
@@ -74,6 +91,12 @@ public final class Data {
     }
 
     public static String cardDesc(int id, int cls) {
+        int k;
+        if ((k = unlSkill(id)) >= 0) return "НОВЕ ВМІННЯ. " + SKILL_DESC[cls][k];
+        if (upgSkill(id) >= 0) return "+30% шкоди, -10% вартості енергії";
+        if (braSkill(id) >= 0) return "ГІЛКА РОЗВИТКУ: +50% шкоди цього вміння";
+        if (brbSkill(id) >= 0) return "ГІЛКА РОЗВИТКУ: перезарядка -35%, вартість -20%";
+        if (id == C_XP) return "Нове вміння не вміщається. Перетворити на досвід: +50% рівня";
         switch (id) {
             case C_STR: return "Більше шкоди від усіх атак";
             case C_VIT: return "Більше HP та захисту";
@@ -94,6 +117,11 @@ public final class Data {
     }
 
     public static int cardColor(int id) {
+        if (unlSkill(id) >= 0) return 0xFFFF4DDB;
+        if (upgSkill(id) >= 0) return 0xFFB06BFF;
+        if (braSkill(id) >= 0) return 0xFFFF9A3C;
+        if (brbSkill(id) >= 0) return 0xFF4DD2FF;
+        if (id == C_XP) return 0xFFFFD84A;
         switch (id) {
             case C_STR: return 0xFFFF7A2E;
             case C_VIT: return 0xFF4DFF88;

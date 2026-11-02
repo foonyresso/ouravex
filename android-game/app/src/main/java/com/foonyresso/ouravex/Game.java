@@ -22,11 +22,11 @@ final class Game {
         boolean left, right, chargeHeld, crouchHeld, atkHeld, dualAtk;
         boolean jumpReq, slideReq, dashReq, atkReq, interactReq;
         int jumpDir, slideDir, dashDir;
-        final boolean[] skillReq = new boolean[4];
+        final boolean[] skillReq = new boolean[Data.NSK];
 
         void clearEvents() {
             jumpReq = slideReq = dashReq = atkReq = interactReq = false;
-            for (int i = 0; i < 4; i++) skillReq[i] = false;
+            for (int i = 0; i < Data.NSK; i++) skillReq[i] = false;
         }
     }
 
@@ -464,8 +464,16 @@ final class Game {
 
     private boolean eligible(int id) {
         if (id <= Data.C_LUK) return true;
-        if (id <= Data.C_UNLT) return !p.unlocked[id - Data.C_UNL0];
-        if (id <= Data.C_UPGT) return p.unlocked[id - Data.C_UPG0] && p.skLvl[id - Data.C_UPG0] < 4;
+        int k;
+        if ((k = Data.unlSkill(id)) >= 0) return !p.unlocked[k] && !p.slotsFull();
+        if ((k = Data.upgSkill(id)) >= 0) return p.unlocked[k] && p.skLvl[k] < 4 && (p.skLvl[k] < 2 || p.skBr[k] != 0);
+        if ((k = Data.braSkill(id)) >= 0) return p.unlocked[k] && p.skLvl[k] >= 2 && p.skBr[k] == 0;
+        if ((k = Data.brbSkill(id)) >= 0) return p.unlocked[k] && p.skLvl[k] >= 2 && p.skBr[k] == 0;
+        if (id == Data.C_XP) {
+            if (!p.slotsFull()) return false;
+            for (int i = 0; i < Data.NSK; i++) if (!p.unlocked[i]) return true;
+            return false;
+        }
         switch (id) {
             case Data.C_REGEN: return p.regenCard < 6f;
             case Data.C_DASHCD: return p.dashCdCard > 0.45f;
@@ -480,9 +488,6 @@ final class Game {
         int forced = -1;
         switch (p.level) {
             case 2: forced = Data.C_UNL0; break;
-            case 3: forced = Data.C_UNL1; break;
-            case 4: forced = Data.C_UNLT; break;
-            case 5: forced = Data.C_UNL2; break;
             default: break;
         }
         int n = 0;
@@ -504,6 +509,14 @@ final class Game {
         audio.setCharging(false, 0f);
     }
 
+    private void applySkillCard(int id) {
+        int k;
+        if ((k = Data.unlSkill(id)) >= 0) p.unlockSkill(k);
+        else if ((k = Data.upgSkill(id)) >= 0) p.skLvl[k]++;
+        else if ((k = Data.braSkill(id)) >= 0) { p.skBr[k] = 1; p.skLvl[k]++; }
+        else if ((k = Data.brbSkill(id)) >= 0) { p.skBr[k] = 2; p.skLvl[k]++; }
+    }
+
     void chooseCard(int i) {
         int id = cards[i];
         switch (id) {
@@ -512,20 +525,19 @@ final class Game {
             case Data.C_AGI: p.agi += 2f; break;
             case Data.C_SPI: p.spi += 2f; break;
             case Data.C_LUK: p.luk += 2f; break;
-            case Data.C_UNL0: case Data.C_UNL1: case Data.C_UNL2: case Data.C_UNLT:
-                p.unlockSkill(id - Data.C_UNL0);
-                break;
-            case Data.C_UPG0: case Data.C_UPG1: case Data.C_UPG2: case Data.C_UPGT:
-                p.skLvl[id - Data.C_UPG0]++;
+            case Data.C_XP:
+                if (p.addXp(p.xpNeed() * 0.5f)) { pendingLevels++; fx.ring(p.x, p.y - 40f, 10f, 160f, 0.5f, Data.GOLD); }
                 break;
             case Data.C_REGEN: p.regenCard += 1.2f; break;
             case Data.C_DASHCD: p.dashCdCard *= 0.8f; break;
             case Data.C_KIEFF: p.kiEffCard *= 0.88f; break;
             case Data.C_DMG: p.dmgCard += 0.10f; break;
             case Data.C_DASH2: p.dashMax++; break;
-            default: p.hpPct += 0.2f; p.heal(p.maxHp() * 0.1f); break;
+            case Data.C_HP: p.hpPct += 0.2f; p.heal(p.maxHp() * 0.1f); break;
+            default: break;
         }
         audio.play(Audio.PICKUP, 1f);
+        applySkillCard(id);
         fx.ring(p.x, p.y - 40f, 10f, 90f, 0.35f, Data.cardColor(id));
         pendingLevels--;
         levelUpPending = false;

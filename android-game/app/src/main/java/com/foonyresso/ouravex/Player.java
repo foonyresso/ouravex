@@ -29,9 +29,10 @@ final class Player {
     float dmgCard, regenCard, dashCdCard = 1f, kiEffCard = 1f, hpPct;
     int dashMax = 2;
     final int[] items = new int[Data.ITEMS];
-    final boolean[] unlocked = new boolean[4];
-    final int[] skLvl = new int[4];
-    final float[] skCd = new float[4];
+    final boolean[] unlocked = new boolean[Data.NSK];
+    final int[] skLvl = new int[Data.NSK];
+    final int[] skBr = new int[Data.NSK];
+    final float[] skCd = new float[Data.NSK];
     boolean transformed;
     float rage, rageForm;
     final int[] slotSkill = {-1, -1, -1, -1};
@@ -50,7 +51,7 @@ final class Player {
     // input buffers
     float bufJump, bufSlide, bufDash, bufAtk;
     int bufJumpDir, bufSlideDir, bufDashDir;
-    final float[] bufSkill = new float[4];
+    final float[] bufSkill = new float[Data.NSK];
 
     // skill state (see Skills)
     int skill, skStage, skI, blitzN;
@@ -74,7 +75,7 @@ final class Player {
         spi = BASE_STAT[cls * 5 + 3]; luk = BASE_STAT[cls * 5 + 4];
         level = 1; xp = 0; dmgCard = 0; regenCard = 0; dashCdCard = 1f; kiEffCard = 1f; hpPct = 0; dashMax = 2;
         for (int i = 0; i < items.length; i++) items[i] = 0;
-        for (int i = 0; i < 4; i++) { unlocked[i] = false; skLvl[i] = 0; skCd[i] = 0; bufSkill[i] = 0; }
+        for (int i = 0; i < Data.NSK; i++) { unlocked[i] = false; skLvl[i] = 0; skBr[i] = 0; skCd[i] = 0; bufSkill[i] = 0; }
         transformed = false;
         rage = 0f; rageForm = 0f; dualTgt = null;
         for (int i = 0; i < 4; i++) slotSkill[i] = -1;
@@ -146,9 +147,11 @@ final class Player {
     float xpNeed() { return 40f + level * 28f; }
     float skillCost(int i) {
         float base = Data.SKILL_COST[cls][i];
-        return base * kiEffCard * (1f - 0.1f * skLvl[i]);
+        return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f);
     }
-    float skMul(int i) { return 1f + 0.3f * skLvl[i]; }
+    float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f); }
+    float skCdMax(int i) { return Data.SKILL_CD[cls][i] * (skBr[i] == 2 ? 0.65f : 1f); }
+    boolean slotsFull() { for (int k = 0; k < 4; k++) if (slotSkill[k] < 0) return false; return true; }
 
     boolean addXp(float amt) {
         xp += amt;
@@ -196,7 +199,7 @@ final class Player {
         slideCd -= dt; comboT -= dt; chainT -= dt; dropT -= dt; hurtGrace -= dt; hitBlink -= dt;
         lastJumpT += dt;
         if (comboT <= 0f) combo = 0;
-        for (int i = 0; i < 4; i++) { skCd[i] -= dt; bufSkill[i] -= dt; }
+        for (int i = 0; i < Data.NSK; i++) { skCd[i] -= dt; bufSkill[i] -= dt; }
         bufJump -= dt; bufSlide -= dt; bufDash -= dt; bufAtk -= dt;
         dashCharge = Math.min(dashMax, dashCharge + dt / dashCd());
         coyote = ground ? 0.1f : coyote - dt;
@@ -205,7 +208,7 @@ final class Player {
         if (c.slideReq) { bufSlide = 0.16f; bufSlideDir = c.slideDir; }
         if (c.dashReq) { bufDash = 0.14f; bufDashDir = c.dashDir; }
         if (c.atkReq) bufAtk = 0.22f;
-        for (int i = 0; i < 4; i++) if (c.skillReq[i]) bufSkill[i] = 0.25f;
+        for (int i = 0; i < Data.NSK; i++) if (c.skillReq[i]) bufSkill[i] = 0.25f;
 
         hp = Math.min(maxHp(), hp + hpRegen() * dt);
         if (st != ST_CHARGE) ki = Math.min(maxKi(), ki + kiRegen() * dt);
@@ -288,7 +291,7 @@ final class Player {
 
         if (bufDash > 0f && tryDash(bufDashDir)) { bufDash = 0f; return; }
         if (c.dualAtk) dualAssist();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < Data.NSK; i++) {
             if (bufSkill[i] > 0f && Skills.tryCast(this, i)) { bufSkill[i] = 0f; return; }
         }
         if (bufJump > 0f && tryJump(bufJumpDir)) bufJump = 0f;
@@ -518,7 +521,7 @@ final class Player {
         // next attack / dash cancel
         if (atkHit && tt >= wind + strike + 0.03f) {
             if (bufDash > 0f && tryDash(bufDashDir)) { bufDash = 0f; return false; }
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < Data.NSK; i++) {
                 if (bufSkill[i] > 0f && Skills.tryCast(this, i)) { bufSkill[i] = 0f; return false; }
             }
             if (bufJump > 0f && tryJump(bufJumpDir)) { bufJump = 0f; st = ST_FREE; return true; }
@@ -576,7 +579,7 @@ final class Player {
         if ((shotN & 1) == 1) { tgt[5] = 46f; tgt[6] = -56f; tgt[7] = 8f; tgt[8] = -64f; tgt[1] = -40f; }
         if (atkHit && stT >= wind + rec * 0.6f) {
             if (bufDash > 0f && tryDash(bufDashDir)) { bufDash = 0f; return false; }
-            for (int i = 0; i < 4; i++) {
+            for (int i = 0; i < Data.NSK; i++) {
                 if (bufSkill[i] > 0f && Skills.tryCast(this, i)) { bufSkill[i] = 0f; return false; }
             }
             if (bufJump > 0f && tryJump(bufJumpDir)) { bufJump = 0f; st = ST_FREE; return true; }
