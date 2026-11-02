@@ -286,7 +286,8 @@ final class Game {
         if (e.boss && bossIntro > 0f) d = 0f;
         e.hp -= d;
         e.flash = 0.12f;
-        if (p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + (power == 2 ? 3f : (power == 1 ? 2f : (power == 0 ? 1f : 0.4f))));
+        if (p.passLvl[0] > 0) p.heal(d * 0.015f * p.passLvl[0]);
+        if (p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + (power == 2 ? 3f : (power == 1 ? 2f : (power == 0 ? 1f : 0.4f))) * (1f + 0.25f * p.passLvl[5]));
         float kr = 1f - e.kbResist;
         e.vx += kbX * kr;
         float vyMul = e.type == Ent.FLYER ? 0.4f : 1f;
@@ -365,6 +366,8 @@ final class Game {
         totalKills++;
         float xp = e.boss ? 260f : (e.type == Ent.BRUTE ? 30f : (e.type == Ent.FLYER ? 12f : 10f));
         xp *= 1f + 0.12f * (stage - 1);
+        xp *= 1f + 0.1f * p.passLvl[7];
+        if (p.passLvl[1] > 0) p.ki = Math.min(p.maxKi(), p.ki + 2f * p.passLvl[1]);
         if (p.addXp(xp)) {
             pendingLevels++;
             if (!levelUpPending) beginLevelUp();
@@ -409,9 +412,19 @@ final class Game {
         float d = dmg;
         if (p.st == Player.ST_CROUCH) d *= 0.4f;
         d *= 60f / (60f + p.defense());
+        d *= 1f - 0.06f * p.passLvl[2];
         d = Math.max(1f, d);
         p.hp -= d;
         if (p.rageForm <= 0f) p.rage = Math.max(0f, p.rage - 15f);
+        if (p.passLvl[6] > 0) {
+            for (int i = 0; i < enemies.size(); i++) {
+                Enemy t = enemies.get(i);
+                if (t.hp <= 0f || t.spawnT > 0f) continue;
+                float tx = t.x - p.x, ty = t.y - p.y;
+                if (tx * tx + ty * ty < 170f * 170f) hitEnemy(t, 8f * p.passLvl[6], (tx >= 0 ? 1f : -1f) * 220f, -120f, 0.25f, 1, tx >= 0 ? 1f : -1f, 0xFFFF4DDB);
+            }
+            fx.ring(p.x, p.y - 40f, 10f, 170f, 0.3f, 0xFFFF4DDB);
+        }
         p.invuln = 0.65f;
         p.hitBlink = 0.65f;
         fx.screenFlash(0xFFFF2040, 0.35f);
@@ -478,7 +491,8 @@ final class Game {
     // ---------------- cards ----------------
 
     private boolean eligible(int id) {
-        if (id >= Data.C_BL0) return false;
+        if (id >= Data.C_BL0 && id < Data.C_PS) return false;
+        if (id >= Data.C_PS) { int q = id - Data.C_PS; return p.passLvl[q] > 0 ? p.passLvl[q] < 5 : !p.passFull(); }
         if (id <= Data.C_LUK) return true;
         int k;
         if ((k = Data.unlSkill(id)) >= 0) return !p.unlocked[k] && !p.slotsFull();
@@ -574,6 +588,10 @@ final class Game {
             case Data.C_KIEFF: p.kiEffCard *= 0.88f; break;
             case Data.C_DMG: p.dmgCard += 0.10f; break;
             case Data.C_DASH2: p.dashMax++; break;
+            case Data.C_PS: case Data.C_PS + 1: case Data.C_PS + 2: case Data.C_PS + 3:
+            case Data.C_PS + 4: case Data.C_PS + 5: case Data.C_PS + 6: case Data.C_PS + 7:
+                p.addPassive(id - Data.C_PS);
+                break;
             case Data.C_BL0:
                 for (int k = 0; k < 4; k++) { int sk = p.slotSkill[k]; if (sk >= 0 && p.sockN[sk] < 8) p.sockN[sk]++; }
                 break;

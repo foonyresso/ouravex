@@ -37,6 +37,15 @@ final class Player {
     float rage, rageForm;
     final int[] slotSkill = {-1, -1, -1, -1};
     Enemy dualTgt;
+    final int[] passLvl = new int[Data.NPAS];
+    final int[] passSlot = {-1, -1};
+    boolean passFull() { return passSlot[0] >= 0 && passSlot[1] >= 0; }
+    void addPassive(int id) {
+        if (passLvl[id] == 0) {
+            for (int k = 0; k < 2; k++) if (passSlot[k] < 0) { passSlot[k] = id; break; }
+        }
+        passLvl[id] = Math.min(5, passLvl[id] + 1);
+    }
     final java.util.ArrayList<Ent.Gem> bag = new java.util.ArrayList<>();
     final Ent.Gem[][] sock = new Ent.Gem[Data.NSK][8];
     final int[] sockN = new int[Data.NSK];
@@ -82,6 +91,8 @@ final class Player {
         transformed = false;
         rage = 0f; rageForm = 0f; dualTgt = null;
         bag.clear();
+        for (int i = 0; i < Data.NPAS; i++) passLvl[i] = 0;
+        passSlot[0] = passSlot[1] = -1;
         for (int i = 0; i < Data.NSK; i++) { sockN[i] = 5; for (int j = 0; j < 8; j++) sock[i][j] = null; }
         for (int i = 0; i < 4; i++) slotSkill[i] = -1;
         hp = maxHp();
@@ -103,16 +114,16 @@ final class Player {
         return m;
     }
     float defense() { return vit * 1.5f + items[7] * 8f; }
-    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.6f : 1f); }
+    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.6f : 1f) * (1f + passLvl[4] * 0.05f); }
     float aspd() { return (1f + agi * 0.015f + items[3] * 0.03f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.5f : 1f); }
-    float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f; }
+    float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f + passLvl[3] * 0.04f; }
     float critMul() { return 1.6f + items[8] * 0.08f; }
     float dropMul() { return 1f + effLuk() * 0.03f; }
     float kiRegen() { return 2f + spi * 0.12f + items[2] * 0.8f; }
     float hpRegen() { return 0.5f + vit * 0.05f + regenCard; }
     float chargeRate() { return 28f * (1f + spi * 0.04f); }
     float dashCd() {
-        float c = 1.5f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f);
+        float c = 1.5f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f) * (1f - passLvl[4] * 0.05f);
         if (transformed) c *= 0.6f;
         return Math.max(0.15f, c);
     }

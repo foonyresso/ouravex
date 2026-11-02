@@ -35,6 +35,20 @@ public final class Data {
     public static final int[] SKILL_COL = {0xFFFF4DDB, 0xFFFFB02E, 0xFF4DFFB0, 0xFFFFD84A, 0xFFFF6A3C, 0xFF7DF9FF, 0xFFB06BFF};
     public static final int NSK = 7;
 
+    // ---- passives ----
+    public static final int NPAS = 8;
+    public static final String[] PAS_NAME = {"Кровожер", "Ритм бою", "Крижана шкіра", "Око хижака", "Вітер", "Лють воїна", "Шипи", "Мудрість"};
+    public static final String[] PAS_DESC = {
+            "Частина завданої шкоди повертається як HP (+1.5% за рівень)",
+            "Кожне вбивство дає енергію (+2 за рівень)",
+            "Отримуєш менше шкоди (-6% за рівень)",
+            "Більше шансу крита (+4% за рівень)",
+            "Швидший біг і ривки (+5% за рівень)",
+            "Лють накопичується швидше (+25% за рівень)",
+            "Удар по тобі б'є ворогів навколо (+8 шкоди за рівень)",
+            "Більше досвіду (+10% за рівень)"};
+    public static final int[] PAS_COL = {0xFFFF4D5A, 0xFF4DA6FF, 0xFFB8E8FF, 0xFFFFC94A, 0xFF7DFFB0, 0xFFFF7A2E, 0xFFFF4DDB, 0xFFB06BFF};
+
     // ---- gems ----
     public static final int GEMS = 5;
     public static final String[] GEM_NAME = {"Рубін", "Сапфір", "Топаз", "Смарагд", "Аметист"};
@@ -60,7 +74,8 @@ public final class Data {
             0xFFB8C4FF, 0xFFFFE27A, 0xFFE0502A, 0xFFB06BFF, 0xFFFFD84A};
 
     // ---- cards ----
-    public static final int CARDS = 46;
+    public static final int CARDS = 54;
+    public static final int C_PS = 46;
     public static final int C_BL0 = 40;
     public static final int C_UNL4 = 19, C_UPG4 = 22, C_XP = 25, C_BRA = 26, C_BRB = 33;
 
@@ -80,7 +95,8 @@ public final class Data {
         if ((k = braSkill(id)) >= 0) return SKILL_NAME[cls][k] + ": Міць";
         if ((k = brbSkill(id)) >= 0) return SKILL_NAME[cls][k] + ": Швидкість";
         if (id == C_XP) return "Слоти зайняті";
-        if (id >= C_BL0) return new String[]{"Гнізда каменів", "Міцна плоть", "Гнів предків", "Тінь вітру", "Скарб алтаря", "Відродження"}[id - C_BL0];
+        if (id >= C_PS) return PAS_NAME[id - C_PS];
+        if (id >= C_BL0 && id < C_PS) return new String[]{"Гнізда каменів", "Міцна плоть", "Гнів предків", "Тінь вітру", "Скарб алтаря", "Відродження"}[id - C_BL0];
         switch (id) {
             case C_STR: return "+2 Сила";
             case C_VIT: return "+2 Живучість";
@@ -107,7 +123,8 @@ public final class Data {
         if (braSkill(id) >= 0) return "ГІЛКА РОЗВИТКУ: +50% шкоди цього вміння";
         if (brbSkill(id) >= 0) return "ГІЛКА РОЗВИТКУ: перезарядка -35%, вартість -20%";
         if (id == C_XP) return "Нове вміння не вміщається. Перетворити на досвід: +50% рівня";
-        if (id >= C_BL0) return new String[]{"+1 гніздо каменів у кожного вміння з слотів (до 8)", "+30% максимального HP", "+25% шкоди", "+1 заряд ривка", "2 випадкові камені", "Повне лікування і 100% люті"}[id - C_BL0];
+        if (id >= C_PS) return "ПАСИВНЕ. " + PAS_DESC[id - C_PS];
+        if (id >= C_BL0 && id < C_PS) return new String[]{"+1 гніздо каменів у кожного вміння з слотів (до 8)", "+30% максимального HP", "+25% шкоди", "+1 заряд ривка", "2 випадкові камені", "Повне лікування і 100% люті"}[id - C_BL0];
         switch (id) {
             case C_STR: return "Більше шкоди від усіх атак";
             case C_VIT: return "Більше HP та захисту";
@@ -133,7 +150,8 @@ public final class Data {
         if (braSkill(id) >= 0) return 0xFFFF9A3C;
         if (brbSkill(id) >= 0) return 0xFF4DD2FF;
         if (id == C_XP) return 0xFFFFD84A;
-        if (id >= C_BL0) return 0xFFB06BFF;
+        if (id >= C_PS) return PAS_COL[id - C_PS];
+        if (id >= C_BL0 && id < C_PS) return 0xFFB06BFF;
         switch (id) {
             case C_STR: return 0xFFFF7A2E;
             case C_VIT: return 0xFF4DFF88;

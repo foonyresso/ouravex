@@ -783,6 +783,21 @@ public class GameView extends View {
         else barG(3, c, 14 * s, 42 * s, 140 * s, 6 * s, p.rage / 100f, p.rage >= 100f ? 0xFFFFFFFF : 0xFFFF5A3C);
         txt(c, p.rageForm > 0f ? "ЛЮТЬ" : (p.rage >= 100f ? "ЛЮТЬ 100%: ЗАРЯДЖАЙ!" : "ЛЮТЬ " + (int) p.rage + "%"), 160 * s, 48 * s, 9, p.rage >= 100f ? 0xFFFFFFFF : 0xFFFF9A7A, Paint.Align.LEFT, true);
         barG(2, c, 0f, H - 6 * s, W, 6 * s, p.xp / p.xpNeed(), 0xFFFFD84A);
+        for (int k = 0; k < 2; k++) {
+            float px = W / 2f + (k == 0 ? -78 : 78) * s, py = H - 18 * s;
+            int ps = p.passSlot[k];
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(2f * s);
+            if (ps < 0) { pt.setColor(0x40B8C4FF); c.drawCircle(px, py, 9 * s, pt); }
+            else {
+                pt.setColor(Data.PAS_COL[ps]);
+                c.drawCircle(px, py, 9 * s, pt);
+                pt.setStyle(Paint.Style.FILL);
+                pt.setColor(Render.a(Data.PAS_COL[ps], 0.35f));
+                c.drawCircle(px, py, 9 * s, pt);
+                txt(c, String.valueOf(p.passLvl[ps]), px, py + 4 * s, 10, 0xFFFFFFFF, Paint.Align.CENTER, true);
+            }
+        }
         txt(c, "РІВ. " + p.level, 222 * s, 24 * s, 13, 0xFFFFD84A, Paint.Align.LEFT, true);
         // items
         float ix = 14 * s, iy = 56 * s;
@@ -1316,7 +1331,10 @@ public class GameView extends View {
                 }
             }
         }
-        txt(c, selGem >= 0 && selGem < p.bag.size() ? "Вибрано: " + Data.GEM_NAME[p.bag.get(selGem).type] + ". Торкнись гнізда, щоб вставити. Заповнене гніздо повертає камінь." : "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 326 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
+        String pl = "ПАСИВНІ: ";
+        for (int k = 0; k < 2; k++) pl += (p.passSlot[k] >= 0 ? Data.PAS_NAME[p.passSlot[k]] + " " + p.passLvl[p.passSlot[k]] + "/5" : "порожньо") + (k == 0 ? "   ·   " : "");
+        txt(c, pl, W / 2f, 318 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
+        txt(c, selGem >= 0 && selGem < p.bag.size() ? "Вибрано: " + Data.GEM_NAME[p.bag.get(selGem).type] + ". Торкнись гнізда, щоб вставити. Заповнене гніздо повертає камінь." : "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 332 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
     }
 
     private void drawDead(Canvas c) {
