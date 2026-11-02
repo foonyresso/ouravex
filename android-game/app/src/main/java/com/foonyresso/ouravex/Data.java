@@ -35,6 +35,14 @@ public final class Data {
     public static final int[] SKILL_COL = {0xFFFF4DDB, 0xFFFFB02E, 0xFF4DFFB0, 0xFFFFD84A, 0xFFFF6A3C, 0xFF7DF9FF, 0xFFB06BFF};
     public static final int NSK = 7;
 
+    // ---- gems ----
+    public static final int GEMS = 5;
+    public static final String[] GEM_NAME = {"Рубін", "Сапфір", "Топаз", "Смарагд", "Аметист"};
+    public static final String[] GEM_DESC = {
+            "+12% шкоди вміння за рівень", "-8% вартості енергії за рівень", "-7% перезарядки за рівень",
+            "+1.5 HP при застосуванні за рівень", "+3 люті при застосуванні за рівень"};
+    public static final int[] GEM_COL = {0xFFFF4D5A, 0xFF4D8CFF, 0xFFFFC94A, 0xFF4DFF9A, 0xFFB06BFF};
+
     // ---- items ----
     public static final int ITEMS = 12;
     public static final String[] ITEM_NAME = {

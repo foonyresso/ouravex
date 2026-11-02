@@ -364,6 +364,7 @@ final class Game {
         rollDrops(e, cx, cy);
         if (e.boss) {
             bossesKilled++;
+            dropGems();
             portalState = 4;
             boss = null;
             flashBanner("БОСА ПОБИТО! ПОРТАЛ ВІДКРИТО", Data.GOLD);
@@ -507,6 +508,18 @@ final class Game {
         audio.setDuck(true);
         audio.play(Audio.LEVELUP, 1f);
         audio.setCharging(false, 0f);
+    }
+
+    private void dropGems() {
+        int n = 1 + (rnd.nextFloat() < 0.35f ? 1 : 0);
+        for (int i = 0; i < n; i++) {
+            int lv = 1 + (int) (stage / 3f + rnd.nextFloat() * 1.2f);
+            Ent.Gem gm = new Ent.Gem(rnd.nextInt(Data.GEMS), Math.min(10, lv));
+            p.bag.add(gm);
+            fx.text(p.x, p.y - 150f - i * 30f, Data.GEM_NAME[gm.type] + " рів." + gm.lvl, Data.GEM_COL[gm.type], 15f);
+            fx.explosion(p.x, p.y - 60f, 70f, Data.GEM_COL[gm.type]);
+        }
+        audio.play(Audio.ITEM, 1f);
     }
 
     private void applySkillCard(int id) {

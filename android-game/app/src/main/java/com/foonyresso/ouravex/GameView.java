@@ -280,10 +280,51 @@ public class GameView extends View {
                 float cell = 38 * s, gap = 4 * s;
                 for (int i = 0; i < own.length; i++) {
                     float cx = 32 * s + (i % 10) * (cell + gap) + cell / 2f, cy = 80 * s + (i / 10) * (cell + gap) + cell / 2f;
-                    if (in(x, y, cx, cy, cell, cell)) { selItem = own[i]; audio.play(Audio.CLICK, 0.5f); return; }
+                    if (in(x, y, cx, cy, cell, cell)) { selItem = own[i]; selGem = -1; audio.play(Audio.CLICK, 0.5f); return; }
+                }
+                Player pl = game.p;
+                for (int i = 0; i < pl.bag.size() && i < 20; i++) {
+                    float cx = 32 * s + (i % 10) * (cell + gap) + cell / 2f, cy = 188 * s + (i / 10) * (cell + gap) + cell / 2f;
+                    if (in(x, y, cx, cy, cell, cell)) {
+                        if (selGem >= 0 && selGem != i && selGem < pl.bag.size() && pl.bag.get(selGem).type == pl.bag.get(i).type) {
+                            Ent.Gem a = pl.bag.get(selGem), b2 = pl.bag.get(i);
+                            b2.lvl = Math.min(10, Math.max(a.lvl, b2.lvl) + 1);
+                            pl.bag.remove(selGem);
+                            selGem = pl.bag.indexOf(b2);
+                            audio.play(Audio.PICKUP, 0.7f);
+                        } else { selGem = i; selItem = -1; audio.play(Audio.CLICK, 0.5f); }
+                        return;
+                    }
                 }
             } else if (pauseTab == 2) {
                 float gap = 10 * s, cw = (wv() * s - 64 * s - 3 * gap) / 4f;
+                Player pl = game.p;
+                for (int k = 0; k < 4; k++) {
+                    int sk = pl.slotSkill[k];
+                    if (sk < 0) continue;
+                    float cx0 = 32 * s + cw / 2f + k * (cw + gap);
+                    int ns = pl.sockN[sk];
+                    float sp = Math.min(26 * s, (cw - 16 * s) / ns);
+                    for (int j = 0; j < ns; j++) {
+                        float sx = cx0 + (j - (ns - 1) / 2f) * sp;
+                        if (!in(x, y, sx, 288 * s, Math.max(sp, 20 * s), 24 * s)) continue;
+                        Ent.Gem cur = pl.sock[sk][j];
+                        if (cur != null) {
+                            pl.bag.add(cur); pl.sock[sk][j] = null;
+                            audio.play(Audio.CLICK, 0.6f);
+                        } else if (selGem >= 0 && selGem < pl.bag.size()) {
+                            Ent.Gem g2 = pl.bag.get(selGem);
+                            Ent.Gem same = null;
+                            for (int q = 0; q < pl.sockN[sk]; q++) if (pl.sock[sk][q] != null && pl.sock[sk][q].type == g2.type) same = pl.sock[sk][q];
+                            if (same != null) same.lvl = Math.min(10, Math.max(same.lvl, g2.lvl) + 1);
+                            else pl.sock[sk][j] = g2;
+                            pl.bag.remove(selGem);
+                            selGem = -1;
+                            audio.play(Audio.PICKUP, 0.8f);
+                        }
+                        return;
+                    }
+                }
                 for (int k = 0; k < 4; k++) {
                     float cx = 32 * s + cw / 2f + k * (cw + gap);
                     if (in(x, y, cx, 190 * s, cw, 230 * s)) {
@@ -1044,7 +1085,19 @@ public class GameView extends View {
 
     // ---------------- pause / dead ----------------
 
-    private int pauseTab = 0, selItem = -1;
+    private int pauseTab = 0, selItem = -1, selGem = -1;
+
+    private void gemShape(Canvas c, float x, float y, float r, int col) {
+        path.reset();
+        path.moveTo(x, y - r); path.lineTo(x + r * 0.8f, y); path.lineTo(x, y + r); path.lineTo(x - r * 0.8f, y); path.close();
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(col, 0.35f));
+        c.drawPath(path, pt);
+        pt.setStyle(Paint.Style.STROKE);
+        pt.setStrokeWidth(2f * S);
+        pt.setColor(col);
+        c.drawPath(path, pt);
+    }
     private static final String[] TABS = {"ПЕРСОНАЖ", "ІНВЕНТАР", "УМІННЯ"};
 
     private float wv() { return W / S; }
@@ -1157,7 +1210,7 @@ public class GameView extends View {
         int[] own = ownedItems();
         txt(c, "ІНВЕНТАР", L, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
         float gx = L, gy = 80 * s, cell = 38 * s, gap = 4 * s;
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 20; i++) {
             int cx = i % 10, cy = i / 10;
             float x = gx + cx * (cell + gap), y = gy + cy * (cell + gap);
             boolean has = i < own.length;
@@ -1178,12 +1231,37 @@ public class GameView extends View {
                 txt(c, "x" + p.items[it], x + cell - 3 * s, y + cell - 3 * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
             }
         }
-        txt(c, "Предметів: " + own.length + " видів", L, 262 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
-        txt(c, "Камені для умінь: скоро", L, 278 * s, 10, 0xFF6A7BFF, Paint.Align.LEFT, false);
+        txt(c, "КАМЕНІ (" + p.bag.size() + ")", L, 180 * s, 12, 0xFF6A7BFF, Paint.Align.LEFT, true);
+        float gy2 = 188 * s;
+        for (int i = 0; i < 20; i++) {
+            int cx = i % 10, cy = i / 10;
+            float x = gx + cx * (cell + gap), y = gy2 + cy * (cell + gap);
+            boolean has = i < p.bag.size();
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFF141A38, 0.95f));
+            rf.set(x, y, x + cell, y + cell);
+            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(1.5f * s);
+            pt.setColor(has ? Render.a(Data.GEM_COL[p.bag.get(i).type], selGem == i ? 1f : 0.5f) : 0x33607098);
+            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
+            if (has) {
+                Ent.Gem gm = p.bag.get(i);
+                gemShape(c, x + cell / 2f, y + cell / 2f - 1 * s, 13 * s, Data.GEM_COL[gm.type]);
+                txt(c, String.valueOf(gm.lvl), x + cell - 3 * s, y + cell - 3 * s, 10, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            }
+        }
         // опис
         float dx = gx + 10 * (cell + gap) + 16 * s, dw = Wv * s - 52 * s - dx;
-        panel(c, dx + dw / 2f, 190 * s, dw, 262 * s, selItem >= 0 ? Data.ITEM_COL[selItem] : 0xFF4A5278, 0.6f);
-        if (selItem >= 0 && p.items[selItem] > 0) {
+        panel(c, dx + dw / 2f, 190 * s, dw, 262 * s, selGem >= 0 && selGem < p.bag.size() ? Data.GEM_COL[p.bag.get(selGem).type] : (selItem >= 0 ? Data.ITEM_COL[selItem] : 0xFF4A5278), 0.6f);
+        if (selGem >= 0 && selGem < p.bag.size()) {
+            Ent.Gem gm = p.bag.get(selGem);
+            gemShape(c, dx + dw / 2f, 115 * s, 34 * s, Data.GEM_COL[gm.type]);
+            txt(c, Data.GEM_NAME[gm.type], dx + dw / 2f, 166 * s, 14, Data.GEM_COL[gm.type], Paint.Align.CENTER, true);
+            txt(c, "Рівень " + gm.lvl, dx + dw / 2f, 184 * s, 11, 0xFFFFD84A, Paint.Align.CENTER, true);
+            wrapText(c, Data.GEM_DESC[gm.type], dx + dw / 2f, 204 * s, dw - 24 * s, 11, 0xFFB8C4FF);
+            wrapText(c, "Торкнись такого ж каменя, щоб об'єднати. Вставити: вкладка УМІННЯ.", dx + dw / 2f, 262 * s, dw - 24 * s, 10, 0xFF8A93B8);
+        } else if (selItem >= 0 && p.items[selItem] > 0) {
             pt.setStyle(Paint.Style.FILL);
             pt.setColor(Render.a(Data.ITEM_COL[selItem], 0.3f));
             rf.set(dx + dw / 2f - 30 * s, 84 * s, dx + dw / 2f + 30 * s, 144 * s);
@@ -1193,7 +1271,7 @@ public class GameView extends View {
             txt(c, "Кількість: " + p.items[selItem], dx + dw / 2f, 184 * s, 11, 0xFFFFFFFF, Paint.Align.CENTER, false);
             wrapText(c, Data.ITEM_DESC[selItem] + (p.items[selItem] > 1 ? " (за кожну копію)" : ""), dx + dw / 2f, 208 * s, dw - 24 * s, 11, 0xFFB8C4FF);
         } else {
-            txt(c, own.length == 0 ? "Предметів ще немає" : "Торкнись предмета", dx + dw / 2f, 195 * s, 12, 0xFF8A93B8, Paint.Align.CENTER, false);
+            txt(c, own.length == 0 && p.bag.isEmpty() ? "Порожньо" : "Торкнись предмета чи каменя", dx + dw / 2f, 195 * s, 12, 0xFF8A93B8, Paint.Align.CENTER, false);
         }
     }
 
@@ -1218,9 +1296,24 @@ public class GameView extends View {
             txt(c, Data.SKILL_NAME[p.cls][sk], cx, 178 * s, 12, col, Paint.Align.CENTER, true);
             txt(c, "Рівень " + (p.skLvl[sk] + 1) + " / 5" + (p.skBr[sk] == 1 ? "  [Міць]" : (p.skBr[sk] == 2 ? "  [Швидк.]" : "")), cx, 194 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
             wrapText(c, Data.SKILL_DESC[p.cls][sk], cx, 214 * s, cw - 16 * s, 10, 0xFFB8C4FF);
-            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", p.skCdMax(sk)) + " с", cx, 290 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
+            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", p.skCdMax(sk)) + " с", cx, 266 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
+            int ns = p.sockN[sk];
+            float sp = Math.min(26 * s, (cw - 16 * s) / ns);
+            for (int j = 0; j < ns; j++) {
+                float sx = cx + (j - (ns - 1) / 2f) * sp, sy = 288 * s;
+                Ent.Gem gm = p.sock[sk][j];
+                if (gm != null) {
+                    gemShape(c, sx, sy, 10 * s, Data.GEM_COL[gm.type]);
+                    txt(c, String.valueOf(gm.lvl), sx, sy + 3 * s, 8, 0xFFFFFFFF, Paint.Align.CENTER, true);
+                } else {
+                    pt.setStyle(Paint.Style.STROKE);
+                    pt.setStrokeWidth(1.5f * s);
+                    pt.setColor(selGem >= 0 ? 0xCCFFFFFF : 0x558890B0);
+                    c.drawCircle(sx, sy, 8 * s, pt);
+                }
+            }
         }
-        txt(c, "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 326 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
+        txt(c, selGem >= 0 && selGem < p.bag.size() ? "Вибрано: " + Data.GEM_NAME[p.bag.get(selGem).type] + ". Торкнись гнізда, щоб вставити. Заповнене гніздо повертає камінь." : "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 326 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
     }
 
     private void drawDead(Canvas c) {

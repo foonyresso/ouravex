@@ -20,6 +20,10 @@ final class Skills {
             return false;
         }
         p.ki -= cost;
+        int gh = p.gemLvl(i, 3);
+        if (gh > 0) p.heal(1.5f * gh);
+        int gr = p.gemLvl(i, 4);
+        if (gr > 0 && p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + 3f * gr);
         p.skCd[i] = p.skCdMax(i);
         p.st = Player.ST_SKILL;
         p.stT = 0f;

@@ -59,6 +59,11 @@ public final class Ent {
         float x, y, vx, vy, t;
     }
 
+    public static final class Gem {
+        int type, lvl;
+        Gem(int t, int l) { type = t; lvl = l; }
+    }
+
     public static final class Platform {
         float x, y, w;
     }

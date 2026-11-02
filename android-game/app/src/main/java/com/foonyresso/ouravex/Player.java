@@ -37,6 +37,9 @@ final class Player {
     float rage, rageForm;
     final int[] slotSkill = {-1, -1, -1, -1};
     Enemy dualTgt;
+    final java.util.ArrayList<Ent.Gem> bag = new java.util.ArrayList<>();
+    final Ent.Gem[][] sock = new Ent.Gem[Data.NSK][8];
+    final int[] sockN = new int[Data.NSK];
 
     int st;
     float stT;
@@ -78,6 +81,8 @@ final class Player {
         for (int i = 0; i < Data.NSK; i++) { unlocked[i] = false; skLvl[i] = 0; skBr[i] = 0; skCd[i] = 0; bufSkill[i] = 0; }
         transformed = false;
         rage = 0f; rageForm = 0f; dualTgt = null;
+        bag.clear();
+        for (int i = 0; i < Data.NSK; i++) { sockN[i] = 5; for (int j = 0; j < 8; j++) sock[i][j] = null; }
         for (int i = 0; i < 4; i++) slotSkill[i] = -1;
         hp = maxHp();
         ki = maxKi() * 0.4f;
@@ -147,10 +152,15 @@ final class Player {
     float xpNeed() { return 40f + level * 28f; }
     float skillCost(int i) {
         float base = Data.SKILL_COST[cls][i];
-        return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f);
+        return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f) * Math.max(0.4f, 1f - 0.08f * gemLvl(i, 1));
     }
-    float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f); }
-    float skCdMax(int i) { return Data.SKILL_CD[cls][i] * (skBr[i] == 2 ? 0.65f : 1f); }
+    int gemLvl(int sk, int type) {
+        int s = 0;
+        for (int j = 0; j < 8; j++) if (sock[sk][j] != null && sock[sk][j].type == type) s += sock[sk][j].lvl;
+        return s;
+    }
+    float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f) + 0.12f * gemLvl(i, 0); }
+    float skCdMax(int i) { return Data.SKILL_CD[cls][i] * (skBr[i] == 2 ? 0.65f : 1f) * Math.max(0.4f, 1f - 0.07f * gemLvl(i, 2)); }
     boolean slotsFull() { for (int k = 0; k < 4; k++) if (slotSkill[k] < 0) return false; return true; }
 
     boolean addXp(float amt) {
