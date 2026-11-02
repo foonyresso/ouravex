@@ -50,6 +50,13 @@ for apk in apks/*.apk; do
       sleep 3
       adb exec-out screencap -p > "$OUT/$n-3-fight.png"
       wait
+      PX=$((W - H * 30 / 400)); PY=$((H * 28 / 400))
+      adb shell input tap $PX $PY; sleep 1
+      adb exec-out screencap -p > "$OUT/$n-4-pause.png"
+      adb shell input tap $((W / 2 + H * 132 / 400)) $((H * 22 / 400)); sleep 1
+      adb exec-out screencap -p > "$OUT/$n-5-skills.png"
+      adb shell input tap $((W / 2 - H * 132 / 400)) $((H * 22 / 400)); sleep 1
+      adb exec-out screencap -p > "$OUT/$n-6-inv.png"
     fi
     echo "--- crashes:" >> "$R"
     adb logcat -d | grep -E "FATAL EXCEPTION|AndroidRuntime|Process: $pkg" | head -30 >> "$R"
