@@ -11,7 +11,8 @@ import android.view.View;
 
 /** Touch input, screens (title / pause / level-up / death) and HUD. */
 public class GameView extends View {
-    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4;
+    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4, BEST = 5;
+    private int bestTab = 0, bestSel = -1;
     private float introT;
     private int pickSlot = -1;
     private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, B_ATK2 = 9, NB = 10;
@@ -49,6 +50,7 @@ public class GameView extends View {
         prefs = context.getSharedPreferences("ouravex", Context.MODE_PRIVATE);
         bestStage = prefs.getInt("bestStage", 0);
         bestKills = prefs.getInt("bestKills", 0);
+        Codex.init(prefs);
         setKeepScreenOn(true);
         for (int i = 0; i < ptrBtn.length; i++) ptrBtn[i] = -1;
         for (int i = 0; i < NB; i++) { bUpT[i] = -9f; bDur[i] = 9f; }
@@ -79,6 +81,7 @@ public class GameView extends View {
         if (screen == PLAY && !game.levelUpPending) { screen = PAUSE; audio.setDuck(true); resetInput(); return true; }
         if (screen == PAUSE) { screen = PLAY; audio.setDuck(false); return true; }
         if (screen == DEAD) { toTitle(); return true; }
+        if (screen == BEST) { screen = TITLE; return true; }
         return false;
     }
 
@@ -252,7 +255,9 @@ public class GameView extends View {
 
     private void menuTap(float x, float y) {
         float s = S;
+        if (screen == BEST) { bestTap(x, y); return; }
         if (screen == TITLE) {
+            if (in(x, y, W - 70 * s, 26 * s, 120 * s, 30 * s)) { screen = BEST; bestSel = -1; audio.play(Audio.CLICK, 0.6f); return; }
             for (int i = 0; i < 2; i++) {
                 if (in(x, y, W / 2f + (i == 0 ? -118 : 118) * s, 160 * s, 220 * s, 150 * s)) {
                     selCls = i; audio.play(Audio.CLICK, 0.7f);
@@ -425,7 +430,9 @@ public class GameView extends View {
 
         // ---- draw ----
         render.draw(c, game, W, H, S, uiT);
-        if (screen == TITLE) {
+        if (screen == BEST) {
+            drawBest(c);
+        } else if (screen == TITLE) {
             drawTitle(c);
             drawUpdate(c);
         } else {
@@ -713,6 +720,124 @@ public class GameView extends View {
 
     // ---------------- title ----------------
 
+    private static final String[] BTABS = {"МОБИ", "ПРЕДМЕТИ", "КАМЕНІ", "ПАСИВНІ", "УМІННЯ"};
+
+    private int bestCount(int tab) {
+        switch (tab) {
+            case 0: return 7;
+            case 1: return Data.ITEMS;
+            case 2: return Data.GEMS;
+            case 3: return Data.NPAS;
+            default: return 14;
+        }
+    }
+
+    private boolean bestKnown(int tab, int i) {
+        switch (tab) {
+            case 0: return Codex.has(i < 3 ? "m" + i : "b" + (i - 3));
+            case 1: return Codex.has("i" + i);
+            case 2: return Codex.has("g" + i);
+            case 3: return Codex.has("p" + i);
+            default: return Codex.has("s" + (i / 7) + "_" + (i % 7));
+        }
+    }
+
+    private int bestColor(int tab, int i) {
+        switch (tab) {
+            case 0: return i < 3 ? new int[]{0xFFFF4D6D, 0xFFB06BFF, 0xFFFFB020}[i] : new int[]{0xFFFF3A3A, 0xFF9A5CFF, 0xFFFF8A2A, 0xFF3AE0C8}[i - 3];
+            case 1: return Data.ITEM_COL[i];
+            case 2: return Data.GEM_COL[i];
+            case 3: return Data.PAS_COL[i];
+            default: return Data.SKILL_COL[i % 7];
+        }
+    }
+
+    private String bestName(int tab, int i) {
+        switch (tab) {
+            case 0: return i < 3 ? Data.MOB_NAME[i] : "БОС: " + Data.BOSS_NAME[i - 3 == 0 ? 0 : (i - 3 == 1 ? 1 : (i - 3 == 2 ? 2 : 3))];
+            case 1: return Data.ITEM_NAME[i];
+            case 2: return Data.GEM_NAME[i];
+            case 3: return Data.PAS_NAME[i];
+            default: return Data.CLS_NAME[i / 7] + ": " + Data.SKILL_NAME[i / 7][i % 7];
+        }
+    }
+
+    private String bestDesc(int tab, int i) {
+        switch (tab) {
+            case 0: return i < 3 ? Data.MOB_DESC[i] : Data.BOSS_DESC[i - 3];
+            case 1: return Data.ITEM_DESC[i];
+            case 2: return Data.GEM_DESC[i];
+            case 3: return Data.PAS_DESC[i];
+            default: return Data.SKILL_DESC[i / 7][i % 7];
+        }
+    }
+
+    private void drawBest(Canvas c) {
+        float s = S, Wv = wv();
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xF2050614);
+        c.drawRect(0, 0, W, H, pt);
+        txt(c, "БЕСТІАРІЙ", W / 2f, 24 * s, 18, 0xFFB06BFF, Paint.Align.CENTER, true);
+        for (int t = 0; t < 5; t++) {
+            float cx = W / 2f + (t - 2) * 110 * s;
+            boolean on = bestTab == t;
+            panel(c, cx, 46 * s, 104 * s, 22 * s, on ? 0xFFFFD84A : 0xFF4A5278, on ? 0.95f : 0.55f);
+            txt(c, BTABS[t], cx, 50 * s, 10, on ? 0xFFFFD84A : 0xFF8A93B8, Paint.Align.CENTER, true);
+        }
+        panel(c, W / 2f, 206 * s, Wv * s - 40 * s, 290 * s, 0xFFB06BFF, 0.9f);
+        int n = bestCount(bestTab);
+        int known = 0;
+        float cell = 42 * s, gap = 6 * s;
+        for (int i = 0; i < n; i++) {
+            boolean k = bestKnown(bestTab, i);
+            if (k) known++;
+            float x = 40 * s + (i % 8) * (cell + gap), y = 78 * s + (i / 8) * (cell + gap);
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFF141A38, 0.95f));
+            rf.set(x, y, x + cell, y + cell);
+            c.drawRoundRect(rf, 6 * s, 6 * s, pt);
+            int col = k ? bestColor(bestTab, i) : 0xFF3A3F5C;
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(1.8f * s);
+            pt.setColor(Render.a(col, bestSel == i ? 1f : 0.6f));
+            c.drawRoundRect(rf, 6 * s, 6 * s, pt);
+            if (!k) txt(c, "?", x + cell / 2f, y + cell * 0.68f, 20, 0xFF5A6080, Paint.Align.CENTER, true);
+            else if (bestTab == 2) gemShape(c, x + cell / 2f, y + cell / 2f, 14 * s, col);
+            else txt(c, bestName(bestTab, i).replace("БОС: ", "").replace("КАЙ: ", "").replace("РЕЙ: ", "").substring(0, 1), x + cell / 2f, y + cell * 0.68f, 20, col, Paint.Align.CENTER, true);
+        }
+        txt(c, "Відкрито: " + known + " / " + n, 40 * s, 300 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
+        float dx = 40 * s + 8 * (cell + gap) + 14 * s, dw = Wv * s - 40 * s - dx - 14 * s;
+        panel(c, dx + dw / 2f, 196 * s, dw, 230 * s, 0xFF4A5278, 0.6f);
+        if (bestSel >= 0 && bestSel < n) {
+            boolean k = bestKnown(bestTab, bestSel);
+            if (k) {
+                int col = bestColor(bestTab, bestSel);
+                txt(c, bestName(bestTab, bestSel), dx + dw / 2f, 100 * s, 14, col, Paint.Align.CENTER, true);
+                wrapText(c, bestDesc(bestTab, bestSel), dx + dw / 2f, 128 * s, dw - 24 * s, 11, 0xFFB8C4FF);
+            } else {
+                txt(c, "???", dx + dw / 2f, 120 * s, 20, 0xFF5A6080, Paint.Align.CENTER, true);
+                wrapText(c, "Ще не відкрито. Зустрінь або отримай це в грі.", dx + dw / 2f, 148 * s, dw - 24 * s, 11, 0xFF8A93B8);
+            }
+        } else {
+            txt(c, "Торкнись запису", dx + dw / 2f, 200 * s, 12, 0xFF8A93B8, Paint.Align.CENTER, false);
+        }
+        panel(c, W / 2f, 376 * s, 160 * s, 28 * s, 0xFF4DFFB0, 0.9f);
+        txt(c, "НАЗАД", W / 2f, 382 * s, 14, 0xFF4DFFB0, Paint.Align.CENTER, true);
+    }
+
+    private void bestTap(float x, float y) {
+        float s = S;
+        for (int t = 0; t < 5; t++) {
+            if (in(x, y, W / 2f + (t - 2) * 110 * s, 46 * s, 104 * s, 22 * s)) { bestTab = t; bestSel = -1; audio.play(Audio.CLICK, 0.5f); return; }
+        }
+        float cell = 42 * s, gap = 6 * s;
+        for (int i = 0; i < bestCount(bestTab); i++) {
+            float cx = 40 * s + (i % 8) * (cell + gap) + cell / 2f, cy = 78 * s + (i / 8) * (cell + gap) + cell / 2f;
+            if (in(x, y, cx, cy, cell, cell)) { bestSel = i; audio.play(Audio.CLICK, 0.5f); return; }
+        }
+        if (in(x, y, W / 2f, 376 * s, 160 * s, 28 * s)) { screen = TITLE; audio.play(Audio.CLICK, 0.6f); }
+    }
+
     private void drawTitle(Canvas c) {
         pt.setStyle(Paint.Style.FILL);
         pt.setColor(0x99060616);
@@ -757,6 +882,8 @@ public class GameView extends View {
         float pu = 0.85f + 0.15f * pulse;
         panel(c, W / 2f, 332 * s, 240 * s, 48 * s, 0xFF4DFFB0, 0.9f);
         txt(c, "ПОЧАТИ", W / 2f, 340 * s, 22 * pu, 0xFF4DFFB0, Paint.Align.CENTER, true);
+        panel(c, W - 70 * s, 26 * s, 120 * s, 30 * s, 0xFFB06BFF, 0.8f);
+        txt(c, "БЕСТІАРІЙ", W - 70 * s, 31 * s, 12, 0xFFB06BFF, Paint.Align.CENTER, true);
         if (bestStage > 0) {
             txt(c, "Рекорд: локація " + bestStage + "  ·  вбито " + bestKills, W / 2f, 384 * s, 12, 0xFF8890B0, Paint.Align.CENTER, false);
         }

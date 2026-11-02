@@ -35,6 +35,17 @@ public final class Data {
     public static final int[] SKILL_COL = {0xFFFF4DDB, 0xFFFFB02E, 0xFF4DFFB0, 0xFFFFD84A, 0xFFFF6A3C, 0xFF7DF9FF, 0xFFB06BFF};
     public static final int NSK = 7;
 
+    public static final String[] MOB_NAME = {"Солдат пустоти", "Літун", "Громило"};
+    public static final String[] MOB_DESC = {
+            "Швидкий піхотинець. Б'є вблизу після короткого замаху.",
+            "Літає над землею й стріляє. Підлітає, щоб прицілитися.",
+            "Повільний і бронований, важко відкинути. Б'є вблизу й стріляє хвилею."};
+    public static final String[] BOSS_DESC = {
+            "Важкий велетень. Стрибає й топчеться, пускає хвилі й колони з землі.",
+            "Літаючий дух. Промені, кільця куль і телепорт-удари.",
+            "Лютіша версія Колоса: швидше б'є й створює більше колон.",
+            "Швидка тінь. Довгі ланцюги телепорт-ударів і віяла променів."};
+
     // ---- passives ----
     public static final int NPAS = 8;
     public static final String[] PAS_NAME = {"Кровожер", "Ритм бою", "Крижана шкіра", "Око хижака", "Вітер", "Лють воїна", "Шипи", "Мудрість"};

@@ -200,6 +200,7 @@ final class Game {
 
     Enemy spawnEnemy(int type, float x, float y) {
         Enemy e = new Enemy();
+        if (type < 3) Codex.mark("m" + type);
         e.type = type; e.x = x; e.y = y;
         e.face = p.x >= x ? 1 : -1;
         switch (type) {
@@ -227,6 +228,7 @@ final class Game {
         int which;
         do { which = rnd.nextInt(4); } while (which == lastBoss);
         lastBoss = which;
+        Codex.mark("b" + which);
         Enemy b = new Enemy();
         b.boss = true;
         b.type = (which & 1) == 0 ? Ent.BOSS1 : Ent.BOSS2;
@@ -479,6 +481,7 @@ final class Game {
     }
 
     void giveItem(int id) {
+        Codex.mark("i" + id);
         p.items[id]++;
         if (id == 1) p.heal(15f);
         audio.play(Audio.ITEM, 1f);
@@ -558,6 +561,7 @@ final class Game {
             int lv = 1 + (int) (stage / 3f + rnd.nextFloat() * 1.2f);
             Ent.Gem gm = new Ent.Gem(rnd.nextInt(Data.GEMS), Math.min(10, lv));
             p.bag.add(gm);
+            Codex.mark("g" + gm.type);
             fx.text(p.x, p.y - 150f - i * 30f, Data.GEM_NAME[gm.type] + " рів." + gm.lvl, Data.GEM_COL[gm.type], 15f);
             fx.explosion(p.x, p.y - 60f, 70f, Data.GEM_COL[gm.type]);
         }
@@ -599,7 +603,7 @@ final class Game {
             case Data.C_BL0 + 2: p.dmgCard += 0.25f; break;
             case Data.C_BL0 + 3: p.dashMax++; break;
             case Data.C_BL0 + 4:
-                for (int q = 0; q < 2; q++) p.bag.add(new Ent.Gem(rnd.nextInt(Data.GEMS), 1 + stage / 3 + rnd.nextInt(2)));
+                for (int q = 0; q < 2; q++) { Ent.Gem gq = new Ent.Gem(rnd.nextInt(Data.GEMS), 1 + stage / 3 + rnd.nextInt(2)); p.bag.add(gq); Codex.mark("g" + gq.type); }
                 break;
             case Data.C_BL0 + 5: p.heal(p.maxHp()); p.rage = 100f; break;
             case Data.C_HP: p.hpPct += 0.2f; p.heal(p.maxHp() * 0.1f); break;

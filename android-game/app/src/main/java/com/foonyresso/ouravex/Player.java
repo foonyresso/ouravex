@@ -41,6 +41,7 @@ final class Player {
     final int[] passSlot = {-1, -1};
     boolean passFull() { return passSlot[0] >= 0 && passSlot[1] >= 0; }
     void addPassive(int id) {
+        Codex.mark("p" + id);
         if (passLvl[id] == 0) {
             for (int k = 0; k < 2; k++) if (passSlot[k] < 0) { passSlot[k] = id; break; }
         }
@@ -131,6 +132,7 @@ final class Player {
 
     void unlockSkill(int i) {
         if (unlocked[i]) return;
+        Codex.mark("s" + cls + "_" + i);
         unlocked[i] = true;
         for (int k = 0; k < 4; k++) if (slotSkill[k] < 0) { slotSkill[k] = i; break; }
     }
