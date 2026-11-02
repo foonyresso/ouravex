@@ -14,7 +14,6 @@ public class GameView extends View {
     private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4, BEST = 5;
     private int bestTab = 0, bestSel = -1;
     private float introT;
-    private int pickSlot = -1;
     private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, B_ATK2 = 9, NB = 10;
 
     private final Audio audio = new Audio();
@@ -78,8 +77,8 @@ public class GameView extends View {
     }
 
     public boolean onBack() {
-        if (screen == PLAY && !game.levelUpPending) { screen = PAUSE; audio.setDuck(true); resetInput(); return true; }
-        if (screen == PAUSE) { screen = PLAY; audio.setDuck(false); return true; }
+        if (screen == PLAY && !game.levelUpPending) { screen = PAUSE; clearSel(); audio.setDuck(true); resetInput(); return true; }
+        if (screen == PAUSE) { if (cfKind != 0) { cfKind = 0; return true; } if (pickerOpen) { pickerOpen = false; return true; } screen = PLAY; audio.setDuck(false); return true; }
         if (screen == DEAD) { toTitle(); return true; }
         if (screen == BEST) { screen = TITLE; return true; }
         return false;
@@ -183,6 +182,7 @@ public class GameView extends View {
     }
 
     private void onDown(int id, float x, float y) {
+        if (screen == PAUSE) { pauseDown(id, x, y); return; }
         if (screen != PLAY) { menuTap(x, y); return; }
         if (game.levelUpPending) { cardTap(x, y); return; }
         int b = hitButton(x, y);
@@ -206,6 +206,7 @@ public class GameView extends View {
             c.interactReq = true;
         } else if (b == B_PAUSE) {
             screen = PAUSE;
+            clearSel();
             audio.setDuck(true);
             audio.play(Audio.CLICK, 0.6f);
             resetInput();
@@ -213,6 +214,7 @@ public class GameView extends View {
     }
 
     private void onMove(int id, float x, float y) {
+        if (screen == PAUSE) { pauseMove(id, x, y); return; }
         if (screen != PLAY || id >= ptrBtn.length) return;
         int b = ptrBtn[id];
         if (b < 0 || b > B_R || bSwiped[b]) return;
@@ -239,6 +241,7 @@ public class GameView extends View {
     }
 
     private void onUp(int id) {
+        if (screen == PAUSE) { pauseUp(id); return; }
         if (screen != PLAY || id >= ptrBtn.length) return;
         int b = ptrBtn[id];
         ptrBtn[id] = -1;
@@ -273,86 +276,6 @@ public class GameView extends View {
                 if (in(x, y, 150 * s, 26 * s, 270 * s, 36 * s)) { Updater.start(getContext()); return; }
             }
             if (in(x, y, W / 2f, 332 * s, 240 * s, 48 * s)) startRun();
-        } else if (screen == PAUSE) {
-            for (int t = 0; t < 3; t++) {
-                if (in(x, y, W / 2f + (t - 1) * 132 * s, 22 * s, 124 * s, 26 * s)) {
-                    pauseTab = t; pickSlot = -1; audio.play(Audio.CLICK, 0.6f);
-                    return;
-                }
-            }
-            if (pauseTab == 1) {
-                int[] own = ownedItems();
-                float cell = 38 * s, gap = 4 * s;
-                for (int i = 0; i < own.length; i++) {
-                    float cx = 32 * s + (i % 10) * (cell + gap) + cell / 2f, cy = 80 * s + (i / 10) * (cell + gap) + cell / 2f;
-                    if (in(x, y, cx, cy, cell, cell)) { selItem = own[i]; selGem = -1; audio.play(Audio.CLICK, 0.5f); return; }
-                }
-                Player pl = game.p;
-                for (int i = 0; i < pl.bag.size() && i < 20; i++) {
-                    float cx = 32 * s + (i % 10) * (cell + gap) + cell / 2f, cy = 188 * s + (i / 10) * (cell + gap) + cell / 2f;
-                    if (in(x, y, cx, cy, cell, cell)) {
-                        if (selGem >= 0 && selGem != i && selGem < pl.bag.size() && pl.bag.get(selGem).type == pl.bag.get(i).type) {
-                            Ent.Gem a = pl.bag.get(selGem), b2 = pl.bag.get(i);
-                            b2.lvl = Math.min(10, Math.max(a.lvl, b2.lvl) + 1);
-                            pl.bag.remove(selGem);
-                            selGem = pl.bag.indexOf(b2);
-                            audio.play(Audio.PICKUP, 0.7f);
-                        } else { selGem = i; selItem = -1; audio.play(Audio.CLICK, 0.5f); }
-                        return;
-                    }
-                }
-            } else if (pauseTab == 2) {
-                float gap = 10 * s, cw = (wv() * s - 64 * s - 3 * gap) / 4f;
-                Player pl = game.p;
-                for (int k = 0; k < 4; k++) {
-                    int sk = pl.slotSkill[k];
-                    if (sk < 0) continue;
-                    float cx0 = 32 * s + cw / 2f + k * (cw + gap);
-                    int ns = pl.sockN[sk];
-                    float sp = Math.min(26 * s, (cw - 16 * s) / ns);
-                    for (int j = 0; j < ns; j++) {
-                        float sx = cx0 + (j - (ns - 1) / 2f) * sp;
-                        if (!in(x, y, sx, 288 * s, Math.max(sp, 20 * s), 24 * s)) continue;
-                        Ent.Gem cur = pl.sock[sk][j];
-                        if (cur != null) {
-                            pl.bag.add(cur); pl.sock[sk][j] = null;
-                            audio.play(Audio.CLICK, 0.6f);
-                        } else if (selGem >= 0 && selGem < pl.bag.size()) {
-                            Ent.Gem g2 = pl.bag.get(selGem);
-                            Ent.Gem same = null;
-                            for (int q = 0; q < pl.sockN[sk]; q++) if (pl.sock[sk][q] != null && pl.sock[sk][q].type == g2.type) same = pl.sock[sk][q];
-                            if (same != null) same.lvl = Math.min(10, Math.max(same.lvl, g2.lvl) + 1);
-                            else pl.sock[sk][j] = g2;
-                            pl.bag.remove(selGem);
-                            selGem = -1;
-                            audio.play(Audio.PICKUP, 0.8f);
-                        }
-                        return;
-                    }
-                }
-                for (int k = 0; k < 4; k++) {
-                    float cx = 32 * s + cw / 2f + k * (cw + gap);
-                    if (in(x, y, cx, 190 * s, cw, 230 * s)) {
-                        if (pickSlot < 0) pickSlot = k;
-                        else {
-                            int t = game.p.slotSkill[pickSlot];
-                            game.p.slotSkill[pickSlot] = game.p.slotSkill[k];
-                            game.p.slotSkill[k] = t;
-                            pickSlot = -1;
-                        }
-                        audio.play(Audio.CLICK, 0.6f);
-                        return;
-                    }
-                }
-            }
-            if (in(x, y, W / 2f - 110 * s, 364 * s, 200 * s, 34 * s)) {
-                pickSlot = -1;
-                screen = PLAY; audio.setDuck(false); audio.play(Audio.CLICK, 0.7f);
-            } else if (in(x, y, W / 2f + 110 * s, 364 * s, 200 * s, 34 * s)) {
-                audio.play(Audio.CLICK, 0.7f);
-                pickSlot = -1;
-                toTitle();
-            }
         } else if (screen == INTRO) {
             if (introT > 0.6f) beginPlay();
         } else if (screen == DEAD) {
@@ -1230,7 +1153,201 @@ public class GameView extends View {
 
     // ---------------- pause / dead ----------------
 
-    private int pauseTab = 0, selItem = -1, selGem = -1;
+    // ======================= ПАУЗА / МЕНЮ =======================
+    private int pauseTab = 0;
+    private int selKind = 0, selA = -1, selB = -1;   // 1 предмет, 2 камінь сумки, 3 слот вміння, 4 гніздо, 5 пасив, 6 камінь у списку
+    private boolean pickerOpen;
+    private int pickSk = -1, pickJ = -1;
+    private int pdKind, pdA, pdB, pdPid = -1;
+    private boolean dragging;
+    private float pdX, pdY, dgX, dgY;
+    private int cfKind, cfA, cfB;
+    private String cfText = "";
+    private int hitK, hitA, hitB;
+    private static final int H_TAB = 11, H_CONT = 30, H_MENU = 31, H_ACT1 = 32, H_ACT2 = 33, H_PCLOSE = 34, H_YES = 35, H_NO = 36;
+
+    private static final String[] TABS = {"ПЕРСОНАЖ", "ІНВЕНТАР", "УМІННЯ"};
+
+    private float wv() { return W / S; }
+    private float lw() { return wv() - 210f; }
+    private float cardW() { return (lw() - 24f) / 4f; }
+    private float cardX(int k) { return 14f + k * (cardW() + 8f) + cardW() / 2f; }
+    private float sockCell() { return Math.min(30f, (cardW() - 12f) / 4f); }
+    private float sockX(int k, int j) { return cardX(k) + ((j % 4) - 1.5f) * sockCell(); }
+    private float sockY(int j) { return 40f + 118f + (j / 4) * sockCell() + sockCell() / 2f; }
+    private float passX(int q) { float pw = (lw() - 8f) / 2f; return 14f + q * (pw + 8f) + pw / 2f; }
+    private int gridCols() { return Math.max(6, (int) ((lw() - 8f) / 40f)); }
+    private float itX(int i) { return 14f + (i % gridCols()) * 40f + 18f; }
+    private float itY(int i) { return 60f + (i / gridCols()) * 40f + 18f; }
+    private float igX(int i) { return itX(i); }
+    private float igY(int i) { return 136f + (i / gridCols()) * 40f + 18f; }
+    private int pkCols() { return Math.max(4, (int) ((lw() - 28f) / 42f)); }
+    private float pkX(int i) { return 28f + (i % pkCols()) * 42f + 20f; }
+    private float pkY(int i) { return 40f + 52f + (i / pkCols()) * 42f + 20f; }
+    private float ipx() { return wv() - 182f; }
+
+    private boolean inV(float vx, float vy, float cx, float cy, float w, float h) {
+        return vx > cx - w / 2 && vx < cx + w / 2 && vy > cy - h / 2 && vy < cy + h / 2;
+    }
+
+    private int[] ownedItems() {
+        Player p = game.p;
+        int n = 0;
+        int[] r = new int[Data.ITEMS];
+        for (int i = 0; i < Data.ITEMS; i++) if (p.items[i] > 0) r[n++] = i;
+        int[] o = new int[n];
+        System.arraycopy(r, 0, o, 0, n);
+        return o;
+    }
+
+    private void clearSel() { selKind = 0; selA = selB = -1; pickerOpen = false; pickSk = pickJ = -1; cfKind = 0; dragging = false; pdKind = 0; pdPid = -1; }
+
+    /** що під пальцем: заповнює hitK/hitA/hitB */
+    private boolean pausePick(float x, float y) {
+        float vx = x / S, vy = y / S;
+        Player p = game.p;
+        hitK = 0; hitA = hitB = -1;
+        if (cfKind != 0) {
+            if (inV(vx, vy, wv() / 2f - 70f, 226f, 120f, 30f)) { hitK = H_YES; return true; }
+            if (inV(vx, vy, wv() / 2f + 70f, 226f, 120f, 30f)) { hitK = H_NO; return true; }
+            return false;
+        }
+        for (int t = 0; t < 3; t++) if (inV(vx, vy, wv() / 2f + (t - 1) * 120f, 16f, 112f, 22f)) { hitK = H_TAB; hitA = t; return true; }
+        if (inV(vx, vy, wv() / 2f - 100f, 372f, 170f, 26f)) { hitK = H_CONT; return true; }
+        if (inV(vx, vy, wv() / 2f + 100f, 372f, 170f, 26f)) { hitK = H_MENU; return true; }
+        float ix = ipx() + 84f;
+        if (hasAct(1) && inV(vx, vy, ix, 326f, 148f, 26f)) { hitK = H_ACT1; return true; }
+        if (hasAct(2) && inV(vx, vy, ix, 294f, 148f, 26f)) { hitK = H_ACT2; return true; }
+        if (pauseTab == 1) {
+            int[] own = ownedItems();
+            for (int i = 0; i < own.length; i++) if (inV(vx, vy, itX(i), itY(i), 36f, 36f)) { hitK = 1; hitA = own[i]; return true; }
+            for (int i = 0; i < p.bag.size() && i < gridCols() * 5; i++) if (inV(vx, vy, igX(i), igY(i), 36f, 36f)) { hitK = 2; hitA = i; return true; }
+        } else if (pauseTab == 2) {
+            if (pickerOpen) {
+                if (inV(vx, vy, 14f + lw() - 56f, 40f + 20f, 96f, 24f)) { hitK = H_PCLOSE; return true; }
+                for (int i = 0; i < p.bag.size() && i < pkCols() * 4; i++) if (inV(vx, vy, pkX(i), pkY(i), 38f, 38f)) { hitK = 6; hitA = i; return true; }
+                return false;
+            }
+            for (int k = 0; k < 4; k++) {
+                int sk = p.slotSkill[k];
+                if (sk < 0) continue;
+                for (int j = 0; j < p.sockN[sk]; j++) if (inV(vx, vy, sockX(k, j), sockY(j), sockCell(), sockCell())) { hitK = 4; hitA = sk; hitB = j; return true; }
+            }
+            for (int k = 0; k < 4; k++) if (inV(vx, vy, cardX(k), 40f + 90f, cardW(), 180f)) { hitK = 3; hitA = k; return true; }
+            for (int q = 0; q < 2; q++) {
+                int ps = p.passSlot[q];
+                if (ps >= 0 && inV(vx, vy, passX(q), 260f, (lw() - 8f) / 2f, 56f)) { hitK = 5; hitA = ps; return true; }
+            }
+        }
+        return false;
+    }
+
+    private boolean hasAct(int n) {
+        Player p = game.p;
+        if (cfKind != 0) return false;
+        if (pauseTab == 2 && selKind == 4 && selA >= 0 && selB >= 0 && p.sock[selA][selB] != null) return n == 1;
+        if (pauseTab == 2 && selKind == 6 && selA >= 0 && selA < p.bag.size() && pickerOpen) return n == 1;
+        return false;
+    }
+
+    private void pauseDown(int id, float x, float y) {
+        if (pdPid >= 0) return;
+        pausePick(x, y);
+        pdKind = hitK; pdA = hitA; pdB = hitB; pdPid = id;
+        pdX = x; pdY = y; dgX = x; dgY = y; dragging = false;
+    }
+
+    private void pauseMove(int id, float x, float y) {
+        if (id != pdPid) return;
+        dgX = x; dgY = y;
+        if (!dragging && (pdKind == 3 || pdKind == 2)) {
+            float dx = x - pdX, dy = y - pdY;
+            if (dx * dx + dy * dy > 100f * S * S) dragging = true;
+        }
+    }
+
+    private void pauseUp(int id) {
+        if (id != pdPid) return;
+        pdPid = -1;
+        Player p = game.p;
+        int k0 = pdKind, a0 = pdA, b0 = pdB;
+        boolean dr = dragging;
+        dragging = false;
+        pdKind = 0;
+        if (cfKind != 0) {
+            pausePick(dgX, dgY);
+            if (hitK == H_YES) { doConfirm(); }
+            else if (hitK == H_NO) { cfKind = 0; audio.play(Audio.CLICK, 0.5f); }
+            return;
+        }
+        if (dr) {
+            pausePick(dgX, dgY);
+            if (k0 == 3 && hitK == 3 && hitA != a0) {
+                int t = p.slotSkill[a0]; p.slotSkill[a0] = p.slotSkill[hitA]; p.slotSkill[hitA] = t;
+                selKind = 3; selA = hitA;
+                audio.play(Audio.CLICK, 0.7f);
+            } else if (k0 == 2 && hitK == 2 && hitA != a0 && a0 < p.bag.size() && hitA < p.bag.size()
+                    && p.bag.get(a0).type == p.bag.get(hitA).type) {
+                cfKind = 1; cfA = a0; cfB = hitA;
+                Ent.Gem g1 = p.bag.get(a0), g2 = p.bag.get(hitA);
+                cfText = "Об'єднати два камені «" + Data.GEM_NAME[g1.type] + "» у один рівня " + Math.min(10, Math.max(g1.lvl, g2.lvl) + 1) + "?";
+            }
+            return;
+        }
+        // дотик
+        int hk = k0, ha = a0, hb = b0;
+        audio.play(Audio.CLICK, 0.5f);
+        switch (hk) {
+            case H_TAB: pauseTab = ha; clearSel(); break;
+            case H_CONT: clearSel(); screen = PLAY; audio.setDuck(false); break;
+            case H_MENU: clearSel(); toTitle(); break;
+            case 1: selKind = 1; selA = ha; break;
+            case 2: selKind = 2; selA = ha; break;
+            case 3: selKind = 3; selA = ha; break;
+            case 5: selKind = 5; selA = ha; break;
+            case 4:
+                selKind = 4; selA = ha; selB = hb;
+                if (p.sock[ha][hb] == null) {
+                    pickerOpen = true; pickSk = ha; pickJ = hb; selKind = 4;
+                }
+                break;
+            case 6: selKind = 6; selA = ha; break;
+            case H_PCLOSE: pickerOpen = false; selKind = 0; break;
+            case H_ACT1:
+                if (selKind == 4 && p.sock[selA][selB] != null) {
+                    p.bag.add(p.sock[selA][selB]); p.sock[selA][selB] = null;
+                    selKind = 0; audio.play(Audio.PICKUP, 0.6f);
+                } else if (selKind == 6 && selA >= 0 && selA < p.bag.size() && pickSk >= 0) {
+                    Ent.Gem gg = p.bag.get(selA);
+                    cfKind = 2; cfA = selA; cfB = pickJ;
+                    cfText = "Вставити «" + Data.GEM_NAME[gg.type] + "» (рів. " + gg.lvl + ") у вміння «" + Data.SKILL_NAME[p.cls][pickSk] + "»?";
+                }
+                break;
+            default: break;
+        }
+    }
+
+    private void doConfirm() {
+        Player p = game.p;
+        if (cfKind == 1 && cfA < p.bag.size() && cfB < p.bag.size()) {
+            Ent.Gem a = p.bag.get(cfA), b = p.bag.get(cfB);
+            b.lvl = Math.min(10, Math.max(a.lvl, b.lvl) + 1);
+            p.bag.remove(cfA);
+            selKind = 2; selA = p.bag.indexOf(b);
+            audio.play(Audio.PICKUP, 0.8f);
+        } else if (cfKind == 2 && cfA < p.bag.size() && pickSk >= 0) {
+            Ent.Gem g2 = p.bag.get(cfA);
+            Ent.Gem same = null;
+            for (int q = 0; q < p.sockN[pickSk]; q++) if (p.sock[pickSk][q] != null && p.sock[pickSk][q].type == g2.type) same = p.sock[pickSk][q];
+            if (same != null) same.lvl = Math.min(10, Math.max(same.lvl, g2.lvl) + 1);
+            else if (p.sock[pickSk][pickJ] == null) p.sock[pickSk][pickJ] = g2;
+            else { cfKind = 0; return; }
+            p.bag.remove(cfA);
+            pickerOpen = false; selKind = 4; selA = pickSk; selB = pickJ;
+            audio.play(Audio.PICKUP, 0.8f);
+        }
+        cfKind = 0;
+    }
 
     private void gemShape(Canvas c, float x, float y, float r, int col) {
         path.reset();
@@ -1243,43 +1360,241 @@ public class GameView extends View {
         pt.setColor(col);
         c.drawPath(path, pt);
     }
-    private static final String[] TABS = {"ПЕРСОНАЖ", "ІНВЕНТАР", "УМІННЯ"};
 
-    private float wv() { return W / S; }
-
-    private void statRow(Canvas c, float x, float y, float w, float h, int idx, String name, String val, int col) {
+    private void cell(Canvas c, float cx, float cy, float sz, int col, boolean sel, boolean glow) {
+        float s = S;
+        rf.set((cx - sz / 2) * s, (cy - sz / 2) * s, (cx + sz / 2) * s, (cy + sz / 2) * s);
         pt.setStyle(Paint.Style.FILL);
-        pt.setColor(Render.a(idx % 2 == 0 ? 0xFF1A2040 : 0xFF121830, 0.85f));
-        rf.set(x, y, x + w, y + h);
-        c.drawRoundRect(rf, 3 * S, 3 * S, pt);
-        txt(c, name, x + 8 * S, y + h * 0.72f, 11, 0xFFA8B4DC, Paint.Align.LEFT, false);
-        txt(c, val, x + w - 8 * S, y + h * 0.72f, 12, col, Paint.Align.RIGHT, true);
+        pt.setColor(Render.a(0xFF141A38, 0.95f));
+        c.drawRoundRect(rf, 6 * s, 6 * s, pt);
+        if (glow) { pt.setColor(Render.a(col, 0.16f)); c.drawRoundRect(rf, 6 * s, 6 * s, pt); }
+        pt.setStyle(Paint.Style.STROKE);
+        pt.setStrokeWidth((sel ? 2.4f : 1.4f) * s);
+        pt.setColor(sel ? 0xFFFFFFFF : Render.a(col, glow ? 0.7f : 0.25f));
+        c.drawRoundRect(rf, 6 * s, 6 * s, pt);
+    }
+
+    private void button(Canvas c, float cx, float cy, float w, float h, String label, int col, boolean on) {
+        float s = S;
+        panel(c, cx * s, cy * s, w * s, h * s, col, on ? 0.95f : 0.6f);
+        txt(c, label, cx * s, (cy + 4.5f) * s, 12, on ? col : 0xFF8A93B8, Paint.Align.CENTER, true);
+    }
+
+    private float wrapL(Canvas c, String t, float x, float y, float maxW, float size, int col) {
+        float s = S;
+        pt.setTextSize(size * s);
+        pt.setFakeBoldText(false);
+        String[] words = t.split(" ");
+        StringBuilder line = new StringBuilder();
+        float yy = y;
+        for (String w : words) {
+            String test = line.length() == 0 ? w : line + " " + w;
+            if (pt.measureText(test) > maxW * s && line.length() > 0) {
+                txt(c, line.toString(), x * s, yy * s, size, col, Paint.Align.LEFT, false);
+                yy += size * 1.28f;
+                line.setLength(0);
+                line.append(w);
+            } else { line.setLength(0); line.append(test); }
+        }
+        if (line.length() > 0) { txt(c, line.toString(), x * s, yy * s, size, col, Paint.Align.LEFT, false); yy += size * 1.28f; }
+        return yy;
     }
 
     private void drawPause(Canvas c) {
-        float s = S, Wv = wv();
+        float s = S;
         Player p = game.p;
         pt.setStyle(Paint.Style.FILL);
-        pt.setColor(0xE6050614);
+        pt.setColor(0xF0050614);
         c.drawRect(0, 0, W, H, pt);
-        // вкладки
         for (int t = 0; t < 3; t++) {
-            float cx = W / 2f + (t - 1) * 132 * s;
+            float cx = wv() / 2f + (t - 1) * 120f;
             boolean on = pauseTab == t;
-            panel(c, cx, 22 * s, 124 * s, 26 * s, on ? 0xFFFFD84A : 0xFF4A5278, on ? 0.95f : 0.6f);
-            txt(c, TABS[t], cx, 27 * s, 12, on ? 0xFFFFD84A : 0xFF8A93B8, Paint.Align.CENTER, true);
+            panel(c, cx * s, 16 * s, 112 * s, 22 * s, on ? 0xFFFFD84A : 0xFF4A5278, on ? 0.95f : 0.55f);
+            txt(c, TABS[t], cx * s, 20.5f * s, 11, on ? 0xFFFFD84A : 0xFF8A93B8, Paint.Align.CENTER, true);
         }
-        // головна панель
-        panel(c, W / 2f, 190 * s, Wv * s - 40 * s, 290 * s, 0xFF35D6FF, 0.92f);
-        float L = 32 * s;
-        if (pauseTab == 0) drawTabChar(c, p, L);
-        else if (pauseTab == 1) drawTabInv(c, p, L);
-        else drawTabSkills(c, p);
-        // кнопки
-        panel(c, W / 2f - 110 * s, 364 * s, 200 * s, 34 * s, 0xFF4DFFB0, 0.9f);
-        txt(c, "ПРОДОВЖИТИ", W / 2f - 110 * s, 370 * s, 15, 0xFF4DFFB0, Paint.Align.CENTER, true);
-        panel(c, W / 2f + 110 * s, 364 * s, 200 * s, 34 * s, 0xFFFF4D6D, 0.9f);
-        txt(c, "В МЕНЮ", W / 2f + 110 * s, 370 * s, 15, 0xFFFF4D6D, Paint.Align.CENTER, true);
+        if (pauseTab == 0) {
+            c.save();
+            c.translate(W / 2f, 200 * s);
+            c.scale(0.8f, 0.8f);
+            c.translate(-W / 2f, -190 * s);
+            panel(c, W / 2f, 190 * s, wv() * s - 40 * s, 290 * s, 0xFF35D6FF, 0.92f);
+            drawTabChar(c, p, 32 * s);
+            c.restore();
+        } else {
+            if (pauseTab == 1) drawTabInv(c, p); else drawTabSkills(c, p);
+            drawInfo(c, p);
+        }
+        button(c, wv() / 2f - 100f, 372f, 170f, 26f, "ПРОДОВЖИТИ", 0xFF4DFFB0, true);
+        button(c, wv() / 2f + 100f, 372f, 170f, 26f, "В МЕНЮ", 0xFFFF4D6D, true);
+        // перетягуваний об'єкт
+        if (dragging && cfKind == 0) {
+            c.saveLayerAlpha(0, 0, W, H, 150);
+            if (pdKind == 3) {
+                int sk = p.slotSkill[pdA];
+                if (sk >= 0) {
+                    int col = Data.SKILL_COL[sk];
+                    panel(c, dgX, dgY, cardW() * s * 0.6f, 120 * s, col, 0.9f);
+                    glyphSkill(c, p.cls, sk, dgX, dgY - 14 * s, 15 * s, col);
+                    txt(c, Data.SKILL_NAME[p.cls][sk], dgX, dgY + 34 * s, 11, col, Paint.Align.CENTER, true);
+                }
+            } else if (pdKind == 2 && pdA < p.bag.size()) {
+                gemShape(c, dgX, dgY, 16 * s, Data.GEM_COL[p.bag.get(pdA).type]);
+            }
+            c.restore();
+        }
+        if (cfKind != 0) {
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(0xB0000008);
+            c.drawRect(0, 0, W, H, pt);
+            panel(c, W / 2f, 190 * s, 330 * s, 130 * s, 0xFFFFD84A, 0.97f);
+            txt(c, "ПІДТВЕРДИТИ", W / 2f, 152 * s, 12, 0xFFFFD84A, Paint.Align.CENTER, true);
+            wrapText(c, cfText, W / 2f, 176 * s, 290 * s, 11, 0xFFE8ECFF);
+            button(c, wv() / 2f - 70f, 226f, 120f, 30f, "ТАК", 0xFF4DFFB0, true);
+            button(c, wv() / 2f + 70f, 226f, 120f, 30f, "НІ", 0xFFFF4D6D, true);
+        }
+    }
+
+    private void drawTabInv(Canvas c, Player p) {
+        float s = S;
+        int[] own = ownedItems();
+        txt(c, "ПРЕДМЕТИ", 14 * s, 52 * s, 11, 0xFFFFD84A, Paint.Align.LEFT, true);
+        int rowsI = Math.max(1, (Data.ITEMS + gridCols() - 1) / gridCols());
+        for (int i = 0; i < gridCols() * rowsI && i < Data.ITEMS; i++) {
+            boolean has = i < own.length;
+            int it = has ? own[i] : -1;
+            int col = has ? Data.ITEM_COL[it] : 0xFF607098;
+            cell(c, itX(i), itY(i), 36f, col, has && selKind == 1 && selA == it, has);
+            if (has) {
+                txt(c, Data.ITEM_NAME[it].substring(0, 1), itX(i) * s, (itY(i) + 6f) * s, 17, col, Paint.Align.CENTER, true);
+                if (p.items[it] > 1) txt(c, "x" + p.items[it], (itX(i) + 16f) * s, (itY(i) + 15f) * s, 8, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            }
+        }
+        txt(c, "КАМЕНІ (" + p.bag.size() + ")", 14 * s, 128 * s, 11, 0xFF6A7BFF, Paint.Align.LEFT, true);
+        int slots = Math.max(gridCols() * 2, Math.min(gridCols() * 5, ((p.bag.size() / gridCols()) + 1) * gridCols()));
+        for (int i = 0; i < slots; i++) {
+            boolean has = i < p.bag.size();
+            boolean dragged = dragging && pdKind == 2 && pdA == i;
+            boolean target = dragging && pdKind == 2 && has && i != pdA && p.bag.get(i).type == p.bag.get(pdA).type
+                    && inV(dgX / s, dgY / s, igX(i), igY(i), 36f, 36f);
+            int col = has ? Data.GEM_COL[p.bag.get(i).type] : 0xFF607098;
+            cell(c, igX(i), igY(i), 36f, col, (selKind == 2 && selA == i) || target, has);
+            if (has && !dragged) {
+                gemShape(c, igX(i) * s, (igY(i) - 1f) * s, 12 * s, col);
+                txt(c, String.valueOf(p.bag.get(i).lvl), (igX(i) + 16f) * s, (igY(i) + 15f) * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            }
+        }
+        if (!p.bag.isEmpty()) txt(c, "Перетягни камінь на такий самий, щоб об'єднати", 14 * s, 352 * s, 9, 0xFF6A7298, Paint.Align.LEFT, false);
+    }
+
+    private void drawTabSkills(Canvas c, Player p) {
+        float s = S;
+        int tgt = -1;
+        if (dragging && pdKind == 3) for (int k = 0; k < 4; k++) if (inV(dgX / s, dgY / s, cardX(k), 130f, cardW(), 180f)) tgt = k;
+        for (int k = 0; k < 4; k++) {
+            int sk = p.slotSkill[k];
+            int col = sk >= 0 ? Data.SKILL_COL[sk] : 0xFF3A3F5C;
+            boolean sel = (selKind == 3 && selA == k) || tgt == k;
+            float cx = cardX(k);
+            panel(c, cx * s, 130 * s, cardW() * s, 180 * s, sel ? 0xFFFFFFFF : col, 0.8f);
+            txt(c, String.valueOf(k + 1), (cx - cardW() / 2f + 12f) * s, 58 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, true);
+            if (sk < 0) { txt(c, "порожньо", cx * s, 134 * s, 11, 0xFF5A6080, Paint.Align.CENTER, false); continue; }
+            boolean ghost = dragging && pdKind == 3 && pdA == k;
+            if (!ghost) {
+                pt.setStyle(Paint.Style.FILL);
+                pt.setColor(Render.a(col, 0.18f));
+                c.drawCircle(cx * s, 82 * s, 20 * s, pt);
+                glyphSkill(c, p.cls, sk, cx * s, 82 * s, 12 * s, col);
+                txt(c, Data.SKILL_NAME[p.cls][sk], cx * s, 124 * s, 11, col, Paint.Align.CENTER, true);
+                txt(c, "Рівень " + (p.skLvl[sk] + 1), cx * s, 138 * s, 9, 0xFFFFD84A, Paint.Align.CENTER, true);
+            }
+            int ns = p.sockN[sk];
+            for (int j = 0; j < ns; j++) {
+                float sx = sockX(k, j), sy = sockY(j);
+                Ent.Gem gm = p.sock[sk][j];
+                boolean ss = selKind == 4 && selA == sk && selB == j;
+                float cs = sockCell() - 3f;
+                if (gm != null) {
+                    cell(c, sx, sy, cs, Data.GEM_COL[gm.type], ss, true);
+                    gemShape(c, sx * s, sy * s, cs * 0.34f * s, Data.GEM_COL[gm.type]);
+                } else {
+                    cell(c, sx, sy, cs, 0xFF8890B0, ss, false);
+                    txt(c, "+", sx * s, (sy + 4f) * s, 12, 0xFF6A7298, Paint.Align.CENTER, true);
+                }
+            }
+        }
+        for (int q = 0; q < 2; q++) {
+            int ps = p.passSlot[q];
+            float pw = (lw() - 8f) / 2f, cx = passX(q);
+            boolean sel = selKind == 5 && selA == ps && ps >= 0;
+            panel(c, cx * s, 260 * s, pw * s, 56 * s, ps >= 0 ? (sel ? 0xFFFFFFFF : Data.PAS_COL[ps]) : 0xFF3A3F5C, 0.8f);
+            if (ps < 0) { txt(c, "пасивне вміння: порожньо", cx * s, 264 * s, 10, 0xFF5A6080, Paint.Align.CENTER, false); continue; }
+            int col = Data.PAS_COL[ps];
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(col, 0.25f));
+            c.drawCircle((cx - pw / 2f + 28f) * s, 260 * s, 16 * s, pt);
+            txt(c, Data.PAS_NAME[ps].substring(0, 1), (cx - pw / 2f + 28f) * s, 266 * s, 16, col, Paint.Align.CENTER, true);
+            txt(c, Data.PAS_NAME[ps], (cx - pw / 2f + 54f) * s, 256 * s, 11, col, Paint.Align.LEFT, true);
+            txt(c, "Рівень " + p.passLvl[ps] + " / 5", (cx - pw / 2f + 54f) * s, 271 * s, 9, 0xFFFFD84A, Paint.Align.LEFT, true);
+        }
+        txt(c, "Перетягни вміння на інше, щоб поміняти місцями. Торкнись гнізда, щоб вставити камінь.", 14 * s, 352 * s, 9, 0xFF6A7298, Paint.Align.LEFT, false);
+        if (pickerOpen) {
+            panel(c, (14f + lw() / 2f) * s, 164 * s, lw() * s, 250 * s, 0xFF6A7BFF, 0.98f);
+            txt(c, "ОБЕРИ КАМІНЬ", 28 * s, 62 * s, 11, 0xFFFFD84A, Paint.Align.LEFT, true);
+            button(c, 14f + lw() - 56f, 60f, 96f, 24f, "ЗАКРИТИ", 0xFFFF4D6D, true);
+            if (p.bag.isEmpty()) txt(c, "Сумка порожня. Камені випадають з босів і скринь.", 28 * s, 110 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
+            for (int i = 0; i < p.bag.size() && i < pkCols() * 4; i++) {
+                int col = Data.GEM_COL[p.bag.get(i).type];
+                cell(c, pkX(i), pkY(i), 38f, col, selKind == 6 && selA == i, true);
+                gemShape(c, pkX(i) * s, (pkY(i) - 1f) * s, 12 * s, col);
+                txt(c, String.valueOf(p.bag.get(i).lvl), (pkX(i) + 17f) * s, (pkY(i) + 16f) * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            }
+        }
+    }
+
+    private void drawInfo(Canvas c, Player p) {
+        float s = S, px = ipx(), pw = 168f;
+        int col = 0xFF4A5278;
+        String name = null, sub = null, desc = null, extra = null;
+        float gx = 0;
+        if (selKind == 1 && p.items[selA] > 0) {
+            col = Data.ITEM_COL[selA]; name = Data.ITEM_NAME[selA]; sub = "Кількість: " + p.items[selA];
+            desc = Data.ITEM_DESC[selA] + (p.items[selA] > 1 ? " (за кожну копію)" : "");
+        } else if ((selKind == 2 || selKind == 6) && selA >= 0 && selA < p.bag.size()) {
+            Ent.Gem g = p.bag.get(selA);
+            col = Data.GEM_COL[g.type]; name = Data.GEM_NAME[g.type]; sub = "Камінь, рівень " + g.lvl; desc = Data.GEM_DESC[g.type];
+            gx = 1;
+        } else if (selKind == 3 && selA >= 0 && p.slotSkill[selA] >= 0) {
+            int sk = p.slotSkill[selA];
+            col = Data.SKILL_COL[sk]; name = Data.SKILL_NAME[p.cls][sk];
+            sub = "Рівень " + (p.skLvl[sk] + 1) + " / 5" + (p.skBr[sk] == 1 ? " · Міць" : (p.skBr[sk] == 2 ? " · Швидкість" : ""));
+            desc = Data.SKILL_DESC[p.cls][sk];
+            extra = "Енергія " + (int) p.skillCost(sk) + " · Перезарядка " + String.format("%.1f", p.skCdMax(sk)) + " с · Гнізда " + p.sockN[sk];
+        } else if (selKind == 4 && selA >= 0) {
+            Ent.Gem g = p.sock[selA][selB];
+            if (g != null) { col = Data.GEM_COL[g.type]; name = Data.GEM_NAME[g.type]; sub = "У гнізді, рівень " + g.lvl; desc = Data.GEM_DESC[g.type]; gx = 1; }
+            else { name = "Порожнє гніздо"; sub = Data.SKILL_NAME[p.cls][selA]; desc = "Обери камінь у списку й вставити його."; }
+        } else if (selKind == 5 && selA >= 0 && p.passLvl[selA] > 0) {
+            col = Data.PAS_COL[selA]; name = Data.PAS_NAME[selA]; sub = "Пасивне, рівень " + p.passLvl[selA] + " / 5"; desc = Data.PAS_DESC[selA];
+        }
+        panel(c, (px + pw / 2f) * s, 190 * s, pw * s, 306 * s, col, 0.85f);
+        if (name == null) {
+            wrapL(c, pauseTab == 1 ? "Торкнись предмета чи каменя, щоб побачити опис." : "Торкнись вміння, гнізда чи пасивного, щоб побачити опис.", px + 12f, 72f, pw - 24f, 10, 0xFF8A93B8);
+            return;
+        }
+        float y = 70f;
+        if (gx > 0) { gemShape(c, (px + 24f) * s, (y + 2f) * s, 14 * s, col); }
+        else if (selKind == 1) {
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(col, 0.3f));
+            rf.set((px + 10f) * s, (y - 12f) * s, (px + 38f) * s, (y + 16f) * s);
+            c.drawRoundRect(rf, 6 * s, 6 * s, pt);
+            txt(c, name.substring(0, 1), (px + 24f) * s, (y + 9f) * s, 17, col, Paint.Align.CENTER, true);
+        }
+        txt(c, name, (px + 46f) * s, (y - 2f) * s, 12, col, Paint.Align.LEFT, true);
+        txt(c, sub, (px + 46f) * s, (y + 12f) * s, 9, 0xFFFFD84A, Paint.Align.LEFT, true);
+        y = wrapL(c, desc, px + 12f, y + 38f, pw - 24f, 10, 0xFFD0D8FF);
+        if (extra != null) wrapL(c, extra, px + 12f, y + 6f, pw - 24f, 9, 0xFF8FD8FF);
+        if (hasAct(1)) button(c, px + 84f, 326f, 148f, 26f, selKind == 6 ? "ВСТАВИТИ" : "ВИЙНЯТИ", selKind == 6 ? 0xFF4DFFB0 : 0xFFFFB020, true);
     }
 
     private void drawTabChar(Canvas c, Player p, float L) {
@@ -1338,130 +1653,6 @@ public class GameView extends View {
             {"Удача дропу", "x" + String.format("%.2f", p.dropMul())}};
         for (int i = 0; i < rows.length; i++)
             statRow(c, x2, (80 + i * 20.5f) * s, w2, 19 * s, i, rows[i][0], rows[i][1], 0xFFFFFFFF);
-    }
-
-    private int[] ownedItems() {
-        Player p = game.p;
-        int n = 0;
-        int[] r = new int[Data.ITEMS];
-        for (int i = 0; i < Data.ITEMS; i++) if (p.items[i] > 0) r[n++] = i;
-        int[] o = new int[n];
-        System.arraycopy(r, 0, o, 0, n);
-        return o;
-    }
-
-    private void drawTabInv(Canvas c, Player p, float L) {
-        float s = S, Wv = wv();
-        int[] own = ownedItems();
-        txt(c, "ІНВЕНТАР", L, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
-        float gx = L, gy = 80 * s, cell = 38 * s, gap = 4 * s;
-        for (int i = 0; i < 20; i++) {
-            int cx = i % 10, cy = i / 10;
-            float x = gx + cx * (cell + gap), y = gy + cy * (cell + gap);
-            boolean has = i < own.length;
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(0xFF141A38, 0.95f));
-            rf.set(x, y, x + cell, y + cell);
-            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
-            pt.setStyle(Paint.Style.STROKE);
-            pt.setStrokeWidth(1.5f * s);
-            int it = has ? own[i] : -1;
-            pt.setColor(has ? Render.a(Data.ITEM_COL[it], selItem == it ? 1f : 0.55f) : 0x33607098);
-            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
-            if (has) {
-                pt.setStyle(Paint.Style.FILL);
-                pt.setColor(Render.a(Data.ITEM_COL[it], 0.25f));
-                c.drawRoundRect(rf, 5 * s, 5 * s, pt);
-                txt(c, Data.ITEM_NAME[it].substring(0, 1), x + cell / 2f, y + cell * 0.66f, 18, Data.ITEM_COL[it], Paint.Align.CENTER, true);
-                txt(c, "x" + p.items[it], x + cell - 3 * s, y + cell - 3 * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
-            }
-        }
-        txt(c, "КАМЕНІ (" + p.bag.size() + ")", L, 180 * s, 12, 0xFF6A7BFF, Paint.Align.LEFT, true);
-        float gy2 = 188 * s;
-        for (int i = 0; i < 20; i++) {
-            int cx = i % 10, cy = i / 10;
-            float x = gx + cx * (cell + gap), y = gy2 + cy * (cell + gap);
-            boolean has = i < p.bag.size();
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(0xFF141A38, 0.95f));
-            rf.set(x, y, x + cell, y + cell);
-            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
-            pt.setStyle(Paint.Style.STROKE);
-            pt.setStrokeWidth(1.5f * s);
-            pt.setColor(has ? Render.a(Data.GEM_COL[p.bag.get(i).type], selGem == i ? 1f : 0.5f) : 0x33607098);
-            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
-            if (has) {
-                Ent.Gem gm = p.bag.get(i);
-                gemShape(c, x + cell / 2f, y + cell / 2f - 1 * s, 13 * s, Data.GEM_COL[gm.type]);
-                txt(c, String.valueOf(gm.lvl), x + cell - 3 * s, y + cell - 3 * s, 10, 0xFFFFFFFF, Paint.Align.RIGHT, true);
-            }
-        }
-        // опис
-        float dx = gx + 10 * (cell + gap) + 16 * s, dw = Wv * s - 52 * s - dx;
-        panel(c, dx + dw / 2f, 190 * s, dw, 262 * s, selGem >= 0 && selGem < p.bag.size() ? Data.GEM_COL[p.bag.get(selGem).type] : (selItem >= 0 ? Data.ITEM_COL[selItem] : 0xFF4A5278), 0.6f);
-        if (selGem >= 0 && selGem < p.bag.size()) {
-            Ent.Gem gm = p.bag.get(selGem);
-            gemShape(c, dx + dw / 2f, 115 * s, 34 * s, Data.GEM_COL[gm.type]);
-            txt(c, Data.GEM_NAME[gm.type], dx + dw / 2f, 166 * s, 14, Data.GEM_COL[gm.type], Paint.Align.CENTER, true);
-            txt(c, "Рівень " + gm.lvl, dx + dw / 2f, 184 * s, 11, 0xFFFFD84A, Paint.Align.CENTER, true);
-            wrapText(c, Data.GEM_DESC[gm.type], dx + dw / 2f, 204 * s, dw - 24 * s, 11, 0xFFB8C4FF);
-            wrapText(c, "Торкнись такого ж каменя, щоб об'єднати. Вставити: вкладка УМІННЯ.", dx + dw / 2f, 262 * s, dw - 24 * s, 10, 0xFF8A93B8);
-        } else if (selItem >= 0 && p.items[selItem] > 0) {
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(Data.ITEM_COL[selItem], 0.3f));
-            rf.set(dx + dw / 2f - 30 * s, 84 * s, dx + dw / 2f + 30 * s, 144 * s);
-            c.drawRoundRect(rf, 8 * s, 8 * s, pt);
-            txt(c, Data.ITEM_NAME[selItem].substring(0, 1), dx + dw / 2f, 130 * s, 36, Data.ITEM_COL[selItem], Paint.Align.CENTER, true);
-            txt(c, Data.ITEM_NAME[selItem], dx + dw / 2f, 166 * s, 14, Data.ITEM_COL[selItem], Paint.Align.CENTER, true);
-            txt(c, "Кількість: " + p.items[selItem], dx + dw / 2f, 184 * s, 11, 0xFFFFFFFF, Paint.Align.CENTER, false);
-            wrapText(c, Data.ITEM_DESC[selItem] + (p.items[selItem] > 1 ? " (за кожну копію)" : ""), dx + dw / 2f, 208 * s, dw - 24 * s, 11, 0xFFB8C4FF);
-        } else {
-            txt(c, own.length == 0 && p.bag.isEmpty() ? "Порожньо" : "Торкнись предмета чи каменя", dx + dw / 2f, 195 * s, 12, 0xFF8A93B8, Paint.Align.CENTER, false);
-        }
-    }
-
-    private void drawTabSkills(Canvas c, Player p) {
-        float s = S, Wv = wv();
-        txt(c, "УМІННЯ", 32 * s, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
-        float gap = 10 * s, cw = (Wv * s - 64 * s - 3 * gap) / 4f;
-        for (int k = 0; k < 4; k++) {
-            float cx = 32 * s + cw / 2f + k * (cw + gap);
-            int sk = p.slotSkill[k];
-            int col = sk >= 0 ? Data.SKILL_COL[sk] : 0xFF3A3F5C;
-            panel(c, cx, 190 * s, cw, 230 * s, pickSlot == k ? 0xFFFFFFFF : col, 0.7f);
-            txt(c, "СЛОТ " + (k + 1), cx, 92 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, true);
-            if (sk < 0) {
-                txt(c, "порожньо", cx, 190 * s, 12, 0xFF5A6080, Paint.Align.CENTER, false);
-                continue;
-            }
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(col, 0.18f));
-            c.drawCircle(cx, 134 * s, 26 * s, pt);
-            glyphSkill(c, p.cls, sk, cx, 134 * s, 15 * s, col);
-            txt(c, Data.SKILL_NAME[p.cls][sk], cx, 178 * s, 12, col, Paint.Align.CENTER, true);
-            txt(c, "Рівень " + (p.skLvl[sk] + 1) + " / 5" + (p.skBr[sk] == 1 ? "  [Міць]" : (p.skBr[sk] == 2 ? "  [Швидк.]" : "")), cx, 194 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
-            wrapText(c, Data.SKILL_DESC[p.cls][sk], cx, 214 * s, cw - 16 * s, 10, 0xFFB8C4FF);
-            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", p.skCdMax(sk)) + " с", cx, 266 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
-            int ns = p.sockN[sk];
-            float sp = Math.min(26 * s, (cw - 16 * s) / ns);
-            for (int j = 0; j < ns; j++) {
-                float sx = cx + (j - (ns - 1) / 2f) * sp, sy = 288 * s;
-                Ent.Gem gm = p.sock[sk][j];
-                if (gm != null) {
-                    gemShape(c, sx, sy, 10 * s, Data.GEM_COL[gm.type]);
-                    txt(c, String.valueOf(gm.lvl), sx, sy + 3 * s, 8, 0xFFFFFFFF, Paint.Align.CENTER, true);
-                } else {
-                    pt.setStyle(Paint.Style.STROKE);
-                    pt.setStrokeWidth(1.5f * s);
-                    pt.setColor(selGem >= 0 ? 0xCCFFFFFF : 0x558890B0);
-                    c.drawCircle(sx, sy, 8 * s, pt);
-                }
-            }
-        }
-        String pl = "ПАСИВНІ: ";
-        for (int k = 0; k < 2; k++) pl += (p.passSlot[k] >= 0 ? Data.PAS_NAME[p.passSlot[k]] + " " + p.passLvl[p.passSlot[k]] + "/5" : "порожньо") + (k == 0 ? "   ·   " : "");
-        txt(c, pl, W / 2f, 318 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
-        txt(c, selGem >= 0 && selGem < p.bag.size() ? "Вибрано: " + Data.GEM_NAME[p.bag.get(selGem).type] + ". Торкнись гнізда, щоб вставити. Заповнене гніздо повертає камінь." : "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 332 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
     }
 
     private void drawDead(Canvas c) {

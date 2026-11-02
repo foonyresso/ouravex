@@ -98,6 +98,7 @@ final class Player {
         bag.clear();
         for (int i = 0; i < Data.NPAS; i++) passLvl[i] = 0;
         passSlot[0] = passSlot[1] = -1;
+        lastSk = -1; lastSkT = rhythmT = speedT = revengeT = soulBuffT = resT = barrier = 0f; thunderT = 4f; rhythm = souls = resStacks = 0; soulFree = false;
         for (int i = 0; i < Data.NSK; i++) { sockN[i] = 5; for (int j = 0; j < 8; j++) sock[i][j] = null; }
         for (int i = 0; i < 4; i++) slotSkill[i] = -1;
         hp = maxHp();
