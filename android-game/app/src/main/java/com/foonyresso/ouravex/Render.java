@@ -86,6 +86,7 @@ final class Render {
             drawPlatform(c, g, pf);
         }
         drawPortal(c, g, t);
+        drawAltar(c, g, t);
         for (int i = 0; i < g.chests.size(); i++) drawChest(c, g.chests.get(i), t);
         for (int i = 0; i < g.drops.size(); i++) drawDrop(c, g.drops.get(i), t);
         for (int i = 0; i < g.teles.size(); i++) drawTele(c, g.teles.get(i), t);
@@ -200,6 +201,25 @@ final class Render {
         p.setStrokeWidth(1f);
         p.setColor(a(pal[2], 0.18f));
         for (float x = pl.x + 12f; x < pl.x + pl.w - 6f; x += 24f) c.drawLine(x, pl.y + 9f, x + 7f, pl.y + 38f, p);
+    }
+
+    private void drawAltar(Canvas c, Game g, float t) {
+        float x = g.altarX;
+        int col = g.altarState == 2 ? 0xFFFFD84A : (g.altarState == 3 ? 0xFF6A4A5A : 0xFFB06BFF);
+        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 4f);
+        if (g.altarState == 0 || g.altarState == 1) circ(c, x, -56f, 54f + 10f * pulse, a(col, 0.12f), true, 1f);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xFF140C22);
+        c.drawRect(x - 30f, -16f, x + 30f, 0f, p);
+        c.drawRect(x - 18f, -70f, x + 18f, -16f, p);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3f);
+        p.setColor(col);
+        c.drawRect(x - 30f, -16f, x + 30f, 0f, p);
+        c.drawRect(x - 18f, -70f, x + 18f, -16f, p);
+        line(c, x - 8f, -56f, x + 8f, -56f, col, 2f);
+        line(c, x, -62f, x, -26f, col, 2f);
+        circ(c, x, -86f - 6f * pulse, 7f, col, true, 1f);
     }
 
     private void drawPortal(Canvas c, Game g, float t) {

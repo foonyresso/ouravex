@@ -807,6 +807,9 @@ public class GameView extends View {
             case 3: ps = ""; break;
             default: ps = "ПОРТАЛ ВІДКРИТО"; pc = 0xFFFFD84A; break;
         }
+        if (game.altarState == 1) {
+            txt(c, "ВИПРОБУВАННЯ " + game.altarKills + "/" + Game.ALTAR_GOAL + "  ·  " + (int) Math.ceil(game.altarT) + " с", W / 2f, 72 * s, 13, 0xFFB06BFF, Paint.Align.CENTER, true);
+        }
         if (game.portalState == 0) {
             bar(c, W / 2f - 80 * s, 26 * s, 160 * s, 7 * s, Math.min(game.kills / (float) Math.max(1, game.killGoal), game.stageTime / game.timeGoal), 0xFF7DF9FF);
             txt(c, ps, W / 2f, 46 * s, 11, pc, Paint.Align.CENTER, true);

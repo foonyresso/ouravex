@@ -44,6 +44,10 @@ final class Game {
     final Random rnd = new Random();
 
     float timeGoal;
+    float altarX, altarT;
+    int altarState, altarKills;
+    boolean blessingMode, blessingWait;
+    static final int ALTAR_GOAL = 25;
     int diff, stage, kills, killGoal, totalKills, bossesKilled;
     float runTime, stageTime, time;
     int portalState;
@@ -105,6 +109,9 @@ final class Game {
                 plats.add(pl);
             }
         }
+        altarX = 2000f + rnd.nextFloat() * (WORLD_W - 4000f);
+        if (Math.abs(altarX - portalX) < 1200f) altarX = (portalX < WORLD_W / 2f) ? portalX + 3000f : portalX - 3000f;
+        altarState = 0; altarT = 0f; altarKills = 0; blessingMode = false; blessingWait = false;
         int nc = 7 + rnd.nextInt(4);
         for (int i = 0; i < nc; i++) {
             Chest c = new Chest();
@@ -346,6 +353,7 @@ final class Game {
             fx.sparks(cx, cy, 10, 320f, 0.4f, 3f, col, dir, -0.2f, 2.5f);
         }
         if (!e.boss) {
+            if (altarState == 1) altarKills++;
             kills++;
         }
         totalKills++;
@@ -464,6 +472,7 @@ final class Game {
     // ---------------- cards ----------------
 
     private boolean eligible(int id) {
+        if (id >= Data.C_BL0) return false;
         if (id <= Data.C_LUK) return true;
         int k;
         if ((k = Data.unlSkill(id)) >= 0) return !p.unlocked[k] && !p.slotsFull();
@@ -487,6 +496,19 @@ final class Game {
     void beginLevelUp() {
         levelUpPending = true;
         int forced = -1;
+        if (blessingMode) {
+            int nb = 0, gd = 0;
+            while (nb < 3 && gd++ < 100) {
+                int id = Data.C_BL0 + rnd.nextInt(6);
+                boolean dup = false;
+                for (int i = 0; i < nb; i++) if (cards[i] == id) dup = true;
+                if (!dup) cards[nb++] = id;
+            }
+            audio.setDuck(true);
+            audio.play(Audio.LEVELUP, 1f);
+            audio.setCharging(false, 0f);
+            return;
+        }
         switch (p.level) {
             case 2: forced = Data.C_UNL0; break;
             default: break;
@@ -546,6 +568,16 @@ final class Game {
             case Data.C_KIEFF: p.kiEffCard *= 0.88f; break;
             case Data.C_DMG: p.dmgCard += 0.10f; break;
             case Data.C_DASH2: p.dashMax++; break;
+            case Data.C_BL0:
+                for (int k = 0; k < 4; k++) { int sk = p.slotSkill[k]; if (sk >= 0 && p.sockN[sk] < 8) p.sockN[sk]++; }
+                break;
+            case Data.C_BL0 + 1: p.hpPct += 0.3f; p.heal(p.maxHp() * 0.3f); break;
+            case Data.C_BL0 + 2: p.dmgCard += 0.25f; break;
+            case Data.C_BL0 + 3: p.dashMax++; break;
+            case Data.C_BL0 + 4:
+                for (int q = 0; q < 2; q++) p.bag.add(new Ent.Gem(rnd.nextInt(Data.GEMS), 1 + stage / 3 + rnd.nextInt(2)));
+                break;
+            case Data.C_BL0 + 5: p.heal(p.maxHp()); p.rage = 100f; break;
             case Data.C_HP: p.hpPct += 0.2f; p.heal(p.maxHp() * 0.1f); break;
             default: break;
         }
@@ -554,6 +586,8 @@ final class Game {
         fx.ring(p.x, p.y - 40f, 10f, 90f, 0.35f, Data.cardColor(id));
         pendingLevels--;
         levelUpPending = false;
+        blessingMode = false;
+        if (blessingWait) { blessingWait = false; blessingMode = true; pendingLevels++; }
         if (pendingLevels > 0) beginLevelUp();
         else audio.setDuck(false);
     }
@@ -562,6 +596,7 @@ final class Game {
 
     String interactLabel() {
         if (p.st == Player.ST_DEAD) return null;
+        if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f) return "ВИПРОБУВАННЯ";
         if (Math.abs(p.x - portalX) < 100f && p.y > -120f) {
             if (portalState == 1) return "АКТИВУВАТИ ПОРТАЛ";
             if (portalState == 4) return "ДАЛІ";
@@ -574,6 +609,15 @@ final class Game {
     }
 
     private void interact() {
+        if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f) {
+            altarState = 1; altarT = 40f; altarKills = 0;
+            flashBanner("ВИПРОБУВАННЯ: " + ALTAR_GOAL + " ВБИВСТВ ЗА 40 С", 0xFFB06BFF);
+            audio.play(Audio.TRANSFORM, 0.8f);
+            fx.screenFlash(0xFFB06BFF, 0.3f);
+            fx.ring(altarX, -60f, 10f, 380f, 0.6f, 0xFFB06BFF);
+            spawnT = 0f;
+            return;
+        }
         if (Math.abs(p.x - portalX) < 100f && p.y > -120f) {
             if (portalState == 1) {
                 portalState = 2;
@@ -643,9 +687,23 @@ final class Game {
             flashBanner("ПОРТАЛ ЗАРЯДЖЕНО!", 0xFF4DFFB0);
             audio.play(Audio.LEVELUP, 0.7f);
         }
+        if (altarState == 1) {
+            altarT -= dt;
+            if (altarKills >= ALTAR_GOAL) {
+                altarState = 2;
+                flashBanner("ВИПРОБУВАННЯ ПРОЙДЕНО!", Data.GOLD);
+                fx.explosion(altarX, -60f, 120f, 0xFFB06BFF);
+                audio.play(Audio.LEVELUP, 1f);
+                if (levelUpPending) blessingWait = true;
+                else { blessingMode = true; pendingLevels++; beginLevelUp(); }
+            } else if (altarT <= 0f) {
+                altarState = 3;
+                flashBanner("ВИПРОБУВАННЯ ПРОВАЛЕНО", 0xFFFF4D6D);
+            }
+        }
         // spawn director
         if (portalState < 2 && p.st != Player.ST_DEAD) {
-            spawnT -= dt;
+            spawnT -= dt * (altarState == 1 ? 3.2f : 1f);
             if (spawnT <= 0f) {
                 int alive = 0;
                 for (int i = 0; i < enemies.size(); i++) if (!enemies.get(i).boss && enemies.get(i).hp > 0f) alive++;
@@ -653,7 +711,7 @@ final class Game {
                 float[] spM = {0.8f, 1f, 1.3f};
                 float interval = Math.max(0.55f, (2.0f - 0.1f * stage) / spM[diff] / (1f + 0.12f * (dcv - 1f)));
                 spawnT = interval * (0.8f + rnd.nextFloat() * 0.4f);
-                if (alive < maxAlive) {
+                if (alive < maxAlive + (altarState == 1 ? 8 : 0)) {
                     int cnt = 1 + (rnd.nextFloat() < Math.min(0.5f, 0.12f * (dcv - 1f)) ? 1 : 0);
                     for (int k = 0; k < cnt; k++) spawnOne();
                 }
