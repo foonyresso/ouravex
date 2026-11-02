@@ -26,6 +26,7 @@ public final class Ent {
         boolean boss;
         float alpha = 1f;
         float bob;
+        float mark;                  // gem Perlina: explosion damage on death
     }
 
     /** kind: 0 player bolt, 1 player orb, 2 player homing, 3 enemy orb, 4 enemy ground wave */

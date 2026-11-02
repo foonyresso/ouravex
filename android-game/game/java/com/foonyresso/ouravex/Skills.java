@@ -15,16 +15,44 @@ final class Skills {
             return true;
         }
         float cost = p.skillCost(i);
+        if (p.soulFree) cost = 0f;
         if (p.ki < cost) {
             if (p.bufSkill[i] > 0.2f) g.fx.text(p.x, p.y - 120f, "Мало ki", 0xFF6A7BFF, 13f);
             return false;
         }
         p.ki -= cost;
-        int gh = p.gemLvl(i, 3);
-        if (gh > 0) p.heal(1.5f * gh);
-        int gr = p.gemLvl(i, 4);
-        if (gr > 0 && p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + 3f * gr);
+        if (p.soulFree) { p.soulFree = false; p.soulBuffT = 4f; p.souls = 0; g.fx.ring(p.x, p.y - 40f, 10f, 200f, 0.4f, 0xFFB06BFF); }
         p.skCd[i] = p.skCdMax(i);
+        p.lastSk = i; p.lastSkT = 1.6f;
+        if (p.passLvl[1] > 0) { p.rhythm = 3; p.rhythmT = 4f; }
+        int g0 = p.gemLvl(i, 0);
+        if (g0 > 0) g.explodeAt(p.x, p.y - 40f, 120f + 10f * g0, 8f * g0, 0xFFFF4D5A);
+        int g1 = p.gemLvl(i, 1);
+        if (g1 > 0 && g.rnd.nextFloat() < Math.min(0.7f, 0.18f * g1)) {
+            p.skCd[i] = 0f; p.ki = Math.min(p.maxKi(), p.ki + cost * 0.5f);
+            g.fx.ring(p.x, p.y - 40f, 10f, 110f, 0.3f, 0xFF4D8CFF);
+            g.fx.text(p.x, p.y - 120f, "ВІДЛУННЯ", 0xFF4D8CFF, 13f);
+        }
+        int g2 = p.gemLvl(i, 2);
+        if (g2 > 0) { p.dashCharge = Math.min((float) p.dashMax, p.dashCharge + 1f); p.speedT = 1.5f + 0.3f * g2; }
+        int g3 = p.gemLvl(i, 3);
+        if (g3 > 0) {
+            float want = p.maxHp() * 0.04f * g3, room = p.maxHp() - p.hp;
+            p.heal(Math.min(want, room));
+            if (want > room) p.barrier = Math.min(80f, p.barrier + (want - room));
+        }
+        int g4 = p.gemLvl(i, 4);
+        if (g4 > 0) { p.resStacks = Math.min(5, p.resStacks + 1); p.resBonus = 0.06f * g4; p.resT = 6f; }
+        int g10 = p.gemLvl(i, 10);
+        if (g10 > 0) {
+            for (int j = 0; j < g.enemies.size(); j++) {
+                Enemy e = g.enemies.get(j);
+                if (e.hp <= 0f || e.spawnT > 0f || e.boss) continue;
+                float dx = p.x - e.x;
+                if (Math.abs(dx) < 300f + 30f * g10 && Math.abs(p.y - e.y) < 260f) e.vx += (dx >= 0 ? 1f : -1f) * Math.min(900f, 420f + 60f * g10) * (1f - e.kbResist);
+            }
+            g.fx.ring(p.x, p.y - 40f, 280f, 20f, 0.35f, 0xFFC8B8FF);
+        }
         p.st = Player.ST_SKILL;
         p.stT = 0f;
         p.skill = i;

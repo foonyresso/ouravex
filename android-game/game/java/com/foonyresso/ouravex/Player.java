@@ -39,6 +39,10 @@ final class Player {
     Enemy dualTgt;
     final int[] passLvl = new int[Data.NPAS];
     final int[] passSlot = {-1, -1};
+    int lastSk = -1;
+    float lastSkT, rhythmT, speedT, revengeT, soulBuffT, resBonus, resT, barrier, thunderT = 4f;
+    int rhythm, souls, resStacks;
+    boolean inNova, soulFree;
     boolean passFull() { return passSlot[0] >= 0 && passSlot[1] >= 0; }
     void addPassive(int id) {
         Codex.mark("p" + id);
@@ -112,19 +116,23 @@ final class Player {
         if (transformed) m *= 1.4f;
         if (rageForm > 0f) m *= 1.4f;
         m *= 1f + Math.min(0.3f, combo * 0.01f);
+        if (passLvl[5] > 0) m *= 1f + passLvl[5] * 0.25f * (1f - Math.max(0f, Math.min(1f, hp / maxHp())));
+        if (passLvl[9] > 0 && ki >= maxKi() * 0.9f) m *= 1f + 0.12f * passLvl[9];
+        if (revengeT > 0f) m *= 1f + 0.25f * passLvl[6];
+        if (soulBuffT > 0f) m *= 1f + 0.2f * passLvl[7];
         return m;
     }
     float defense() { return vit * 1.5f + items[7] * 8f; }
-    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.6f : 1f) * (1f + passLvl[4] * 0.05f); }
+    float moveSpeed() { return 470f * (1f + agi * 0.012f + items[3] * 0.04f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.6f : 1f) * (1f + (passLvl[9] > 0 && ki >= maxKi() * 0.9f ? 0.1f * passLvl[9] : 0f)) * (speedT > 0f ? 1.25f : 1f); }
     float aspd() { return (1f + agi * 0.015f + items[3] * 0.03f) * (transformed ? 1.25f : 1f) * (rageForm > 0f ? 1.5f : 1f); }
-    float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f + passLvl[3] * 0.04f; }
+    float critChance() { return 0.05f + effLuk() * 0.006f + items[8] * 0.04f; }
     float critMul() { return 1.6f + items[8] * 0.08f; }
     float dropMul() { return 1f + effLuk() * 0.03f; }
     float kiRegen() { return 2f + spi * 0.12f + items[2] * 0.8f; }
     float hpRegen() { return 0.5f + vit * 0.05f + regenCard; }
     float chargeRate() { return 28f * (1f + spi * 0.04f); }
     float dashCd() {
-        float c = 1.5f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f) * (1f - passLvl[4] * 0.05f);
+        float c = 1.5f * (1f - Math.min(0.5f, agi * 0.01f)) * dashCdCard * (1f - items[10] * 0.08f);
         if (transformed) c *= 0.6f;
         return Math.max(0.15f, c);
     }
@@ -165,15 +173,15 @@ final class Player {
     float xpNeed() { return 40f + level * 28f; }
     float skillCost(int i) {
         float base = Data.SKILL_COST[cls][i];
-        return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f) * Math.max(0.4f, 1f - 0.08f * gemLvl(i, 1));
+        return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f) * 1f;
     }
     int gemLvl(int sk, int type) {
         int s = 0;
         for (int j = 0; j < 8; j++) if (sock[sk][j] != null && sock[sk][j].type == type) s += sock[sk][j].lvl;
         return s;
     }
-    float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f) + 0.12f * gemLvl(i, 0); }
-    float skCdMax(int i) { return Data.SKILL_CD[cls][i] * (skBr[i] == 2 ? 0.65f : 1f) * Math.max(0.4f, 1f - 0.07f * gemLvl(i, 2)); }
+    float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f); }
+    float skCdMax(int i) { return Data.SKILL_CD[cls][i] * (skBr[i] == 2 ? 0.65f : 1f) ; }
     boolean slotsFull() { for (int k = 0; k < 4; k++) if (slotSkill[k] < 0) return false; return true; }
 
     boolean addXp(float amt) {
@@ -219,6 +227,9 @@ final class Player {
             return;
         }
         invuln = Math.max(0f, invuln - dt);
+        lastSkT -= dt; rhythmT -= dt; speedT -= dt; revengeT -= dt; soulBuffT -= dt; resT -= dt;
+        if (rhythmT <= 0f) rhythm = 0;
+        if (resT <= 0f) { resStacks = 0; resBonus = 0f; }
         slideCd -= dt; comboT -= dt; chainT -= dt; dropT -= dt; hurtGrace -= dt; hitBlink -= dt;
         lastJumpT += dt;
         if (comboT <= 0f) combo = 0;
@@ -430,6 +441,7 @@ final class Player {
         g.audio.play(Audio.TELEPORT, 0.9f);
         g.fx.shake(0.1f);
         invuln = Math.max(invuln, 0.28f);
+        if (passLvl[4] > 0) g.explodeAt(x0, y0 - 40f, 120f, 9f * passLvl[4], 0xFF7DFFB0);
         st = ST_DASH; stT = 0;
         vx = 0; vy = 0;
         atkIdx = 0;

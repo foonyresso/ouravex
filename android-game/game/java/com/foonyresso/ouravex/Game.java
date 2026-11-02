@@ -285,11 +285,31 @@ final class Game {
         boolean crit = rnd.nextFloat() < p.critChance();
         float d = baseDmg * p.dmgMul();
         if (crit) d *= p.critMul();
+        int ask = p.lastSkT > 0f ? p.lastSk : -1;
+        if (ask >= 0) {
+            int gz = p.gemLvl(ask, 9);
+            if (gz > 0 && (e.type == Ent.FLYER || e.vy < -60f || e.y < p.y - 90f)) { d *= 1f + 0.3f * gz; e.vy += 420f; }
+            if (p.resT > 0f) d *= 1f + p.resBonus * p.resStacks;
+        }
+        if (p.rhythm > 0 && power < 3) {
+            d *= 1f + 0.35f * p.passLvl[1]; p.rhythm--;
+            p.ki = Math.min(p.maxKi(), p.ki + 2f * p.passLvl[1]);
+            fx.ring(e.x, e.y - e.h * 0.5f, 6f, 70f, 0.2f, 0xFF4DA6FF);
+        }
+        if (p.passLvl[3] > 0 && !e.boss) {
+            float fr = e.hp / Math.max(1f, e.maxHp);
+            if (fr < 0.08f * p.passLvl[3]) { d = e.hp + 1f; fx.text(e.x, e.y - e.h - 30f, "ДОБИВАННЯ", 0xFFFFC94A, 13f); }
+            else if (fr < 0.3f) d *= 1f + 0.2f * p.passLvl[3];
+        }
+        if (ask >= 0 && !e.boss) {
+            int go = p.gemLvl(ask, 6);
+            if (go > 0 && e.hp / Math.max(1f, e.maxHp) < 0.04f * go) { d = e.hp + 1f; p.ki = Math.min(p.maxKi(), p.ki + 4f * go); fx.text(e.x, e.y - e.h - 30f, "ЖНЕЦЬ", 0xFF8A5CFF, 13f); }
+        }
         if (e.boss && bossIntro > 0f) d = 0f;
         e.hp -= d;
         e.flash = 0.12f;
-        if (p.passLvl[0] > 0) p.heal(d * 0.015f * p.passLvl[0]);
-        if (p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + (power == 2 ? 3f : (power == 1 ? 2f : (power == 0 ? 1f : 0.4f))) * (1f + 0.25f * p.passLvl[5]));
+        if (p.revengeT > 0f) p.heal(Math.min(3f, d * 0.04f) * p.passLvl[6]);
+        if (p.rageForm <= 0f) p.rage = Math.min(100f, p.rage + (power == 2 ? 3f : (power == 1 ? 2f : (power == 0 ? 1f : 0.4f))));
         float kr = 1f - e.kbResist;
         e.vx += kbX * kr;
         float vyMul = e.type == Ent.FLYER ? 0.4f : 1f;
@@ -315,10 +335,41 @@ final class Game {
         if (crit) { stop(0.03f); audio.play(Audio.PICKUP, 0.25f); }
         p.combo++;
         p.comboT = 2.2f;
+        if (p.passLvl[0] > 0 && p.combo % 10 == 0 && !p.inNova) {
+            p.inNova = true;
+            p.heal(3f * p.passLvl[0]);
+            explodeAt(p.x, p.y - 40f, 170f, 9f * p.passLvl[0], 0xFFFF4D5A);
+            p.inNova = false;
+        }
+        if (ask >= 0) {
+            int gp = p.gemLvl(ask, 5);
+            if (gp > 0 && power != 3) chainFrom(e, d * 0.25f * gp);
+            int gs = p.gemLvl(ask, 7);
+            if (gs > 0 && power != 3 && rnd.nextFloat() < Math.min(0.8f, 0.10f * gs)) e.stun = Math.max(e.stun, e.boss ? 0.2f : 1.4f);
+            int gm = p.gemLvl(ask, 8);
+            if (gm > 0) e.mark = Math.max(e.mark, 16f * gm);
+        }
         // item procs
         if (p.items[4] > 0) p.heal(d * 0.015f * p.items[4]);
         if (p.items[5] > 0 && power != 3 && rnd.nextFloat() < Math.min(0.8f, 0.10f * p.items[5])) thunder(e);
         if (e.hp <= 0f) killEnemy(e, dir);
+    }
+
+    private void chainFrom(Enemy src, float dmg) {
+        int n = 0;
+        float sx = src.x, sy = src.y - src.h * 0.5f;
+        for (int i = 0; i < enemies.size() && n < 2; i++) {
+            Enemy t = enemies.get(i);
+            if (t == src || t.hp <= 0f || t.spawnT > 0f) continue;
+            float dx = t.x - sx, dy = (t.y - t.h * 0.5f) - sy;
+            if (dx * dx + dy * dy > 280f * 280f) continue;
+            n++;
+            burst(1, sx, sy, (float) Math.atan2(dy, dx), (float) Math.sqrt(dx * dx + dy * dy), 5f, 0.16f, 0xFFE8F0FF);
+            t.hp -= dmg;
+            t.flash = 0.1f;
+            fx.text(t.x, t.y - t.h - 8f, String.valueOf((int) dmg), 0xFFE8F0FF, 12f);
+            if (t.hp <= 0f) killEnemy(t, 1f);
+        }
     }
 
     private void thunder(Enemy src) {
@@ -361,6 +412,15 @@ final class Game {
             audio.play(Audio.DIE, 0.7f);
             fx.sparks(cx, cy, 10, 320f, 0.4f, 3f, col, dir, -0.2f, 2.5f);
         }
+        if (e.mark > 0f) { float mk = e.mark; e.mark = 0f; explodeAt(cx, cy, 120f, mk, 0xFFFF7AC8); }
+        if (p.passLvl[7] > 0 && p.soulBuffT <= 0f) {
+            p.souls++;
+            if (p.souls >= 16 - 2 * p.passLvl[7]) {
+                p.souls = 0; p.soulFree = true;
+                fx.ring(p.x, p.y - 40f, 10f, 140f, 0.5f, 0xFFB06BFF);
+                fx.text(p.x, p.y - 120f, "ДУШІ ЗІБРАНО", 0xFFB06BFF, 15f);
+            }
+        }
         if (!e.boss) {
             if (altarState == 1) altarKills++;
             kills++;
@@ -368,8 +428,6 @@ final class Game {
         totalKills++;
         float xp = e.boss ? 260f : (e.type == Ent.BRUTE ? 30f : (e.type == Ent.FLYER ? 12f : 10f));
         xp *= 1f + 0.12f * (stage - 1);
-        xp *= 1f + 0.1f * p.passLvl[7];
-        if (p.passLvl[1] > 0) p.ki = Math.min(p.maxKi(), p.ki + 2f * p.passLvl[1]);
         if (p.addXp(xp)) {
             pendingLevels++;
             if (!levelUpPending) beginLevelUp();
@@ -414,18 +472,24 @@ final class Game {
         float d = dmg;
         if (p.st == Player.ST_CROUCH) d *= 0.4f;
         d *= 60f / (60f + p.defense());
-        d *= 1f - 0.06f * p.passLvl[2];
         d = Math.max(1f, d);
+        if (p.barrier > 0f) { float ab = Math.min(p.barrier, d); p.barrier -= ab; d -= ab; fx.ring(p.x, p.y - 40f, 10f, 80f, 0.2f, 0xFF4DFF9A); }
         p.hp -= d;
+        if (p.passLvl[6] > 0) p.revengeT = 4f;
         if (p.rageForm <= 0f) p.rage = Math.max(0f, p.rage - 15f);
-        if (p.passLvl[6] > 0) {
+        if (p.passLvl[2] > 0) {
             for (int i = 0; i < enemies.size(); i++) {
                 Enemy t = enemies.get(i);
                 if (t.hp <= 0f || t.spawnT > 0f) continue;
                 float tx = t.x - p.x, ty = t.y - p.y;
-                if (tx * tx + ty * ty < 170f * 170f) hitEnemy(t, 8f * p.passLvl[6], (tx >= 0 ? 1f : -1f) * 220f, -120f, 0.25f, 1, tx >= 0 ? 1f : -1f, 0xFFFF4DDB);
+                if (tx * tx + ty * ty < 210f * 210f) {
+                    float kr = 1f - t.kbResist;
+                    t.vx += (tx >= 0 ? 1f : -1f) * 300f * kr;
+                    t.vy -= 120f * kr;
+                    t.stun = Math.max(t.stun, (t.boss ? 0.1f : 0.5f) + 0.15f * p.passLvl[2]);
+                }
             }
-            fx.ring(p.x, p.y - 40f, 10f, 170f, 0.3f, 0xFFFF4DDB);
+            fx.ring(p.x, p.y - 40f, 10f, 210f, 0.35f, 0xFFB8E8FF);
         }
         p.invuln = 0.65f;
         p.hitBlink = 0.65f;
@@ -594,6 +658,7 @@ final class Game {
             case Data.C_DASH2: p.dashMax++; break;
             case Data.C_PS: case Data.C_PS + 1: case Data.C_PS + 2: case Data.C_PS + 3:
             case Data.C_PS + 4: case Data.C_PS + 5: case Data.C_PS + 6: case Data.C_PS + 7:
+            case Data.C_PS + 8: case Data.C_PS + 9:
                 p.addPassive(id - Data.C_PS);
                 break;
             case Data.C_BL0:
@@ -707,6 +772,25 @@ final class Game {
         atkSpd = asM[diff];
 
         p.update(dt);
+        if (p.passLvl[8] > 0 && p.st != Player.ST_DEAD) {
+            p.thunderT -= dt;
+            if (p.thunderT <= 0f) {
+                p.thunderT = 8f - p.passLvl[8];
+                Enemy near = null; float bd = 560f * 560f;
+                for (int i = 0; i < enemies.size(); i++) {
+                    Enemy e = enemies.get(i);
+                    if (e.hp <= 0f || e.spawnT > 0f) continue;
+                    float dx = e.x - p.x, dy = e.y - p.y;
+                    if (dx * dx + dy * dy < bd) { bd = dx * dx + dy * dy; near = e; }
+                }
+                if (near != null) {
+                    burst(1, near.x, near.y - 700f, 1.5708f, 700f, 10f, 0.2f, 0xFFFFF04D);
+                    hitEnemy(near, 12f + 5f * p.passLvl[8], 0f, 0f, 0.3f, 3, 1f, 0xFFFFF04D);
+                    if (near.hp > 0f) thunder(near);
+                    audio.play(Audio.EXPLODE, 0.4f);
+                } else p.thunderT = 1f;
+            }
+        }
         if (p.st != Player.ST_DEAD && ctl.interactReq) interact();
         if (p.st != Player.ST_FREE && p.st != Player.ST_CHARGE) audio.setCharging(false, 0f);
 
