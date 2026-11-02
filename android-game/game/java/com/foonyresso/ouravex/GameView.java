@@ -1597,6 +1597,15 @@ public class GameView extends View {
         if (hasAct(1)) button(c, px + 84f, 326f, 148f, 26f, selKind == 6 ? "ВСТАВИТИ" : "ВИЙНЯТИ", selKind == 6 ? 0xFF4DFFB0 : 0xFFFFB020, true);
     }
 
+    private void statRow(Canvas c, float x, float y, float w, float h, int idx, String name, String val, int col) {
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(idx % 2 == 0 ? 0xFF1A2040 : 0xFF121830, 0.85f));
+        rf.set(x, y, x + w, y + h);
+        c.drawRoundRect(rf, 3 * S, 3 * S, pt);
+        txt(c, name, x + 8 * S, y + h * 0.72f, 11, 0xFFA8B4DC, Paint.Align.LEFT, false);
+        txt(c, val, x + w - 8 * S, y + h * 0.72f, 12, col, Paint.Align.RIGHT, true);
+    }
+
     private void drawTabChar(Canvas c, Player p, float L) {
         float s = S, Wv = wv();
         // портрет
