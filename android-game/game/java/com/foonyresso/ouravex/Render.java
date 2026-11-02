@@ -87,6 +87,7 @@ final class Render {
         }
         drawPortal(c, g, t);
         drawAltar(c, g, t);
+        drawMerchant(c, g, t);
         for (int i = 0; i < g.chests.size(); i++) drawChest(c, g.chests.get(i), t);
         for (int i = 0; i < g.drops.size(); i++) drawDrop(c, g.drops.get(i), t);
         for (int i = 0; i < g.teles.size(); i++) drawTele(c, g.teles.get(i), t);
@@ -203,9 +204,41 @@ final class Render {
         for (float x = pl.x + 12f; x < pl.x + pl.w - 6f; x += 24f) c.drawLine(x, pl.y + 9f, x + 7f, pl.y + 38f, p);
     }
 
+    private void drawMerchant(Canvas c, Game g, float t) {
+        if (g.merType == 0) return;
+        float x = g.merX;
+        int col = g.merType == 1 ? 0xFFFFD84A : 0xFF35E0FF;
+        float pulse = 0.5f + 0.5f * (float) Math.sin(t * 3f);
+        circ(c, x, -50f, 70f + 8f * pulse, a(col, 0.10f), true, 1f);
+        p.setStyle(Paint.Style.FILL);
+        p.setColor(0xFF140C22);
+        path.reset();
+        path.moveTo(x - 26f, 0f); path.lineTo(x - 14f, -62f); path.lineTo(x + 14f, -62f); path.lineTo(x + 26f, 0f); path.close();
+        c.drawPath(path, p);
+        circ(c, x, -76f, 13f, 0xFF140C22, true, 1f);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(3f);
+        p.setColor(col);
+        c.drawPath(path, p);
+        c.drawCircle(x, -76f, 13f, p);
+        circ(c, x - 5f, -77f, 2.5f, col, true, 1f);
+        circ(c, x + 5f, -77f, 2.5f, col, true, 1f);
+        // ліхтар
+        line(c, x + 26f, -48f, x + 40f, -62f, col, 2f);
+        circ(c, x + 42f, -66f + 2f * pulse, 7f, col, true, 1f);
+        // вивіска: монета чи кристал
+        if (g.merType == 1) circ(c, x, -110f, 8f, col, false, 3f);
+        else {
+            path.reset();
+            path.moveTo(x, -122f); path.lineTo(x + 8f, -110f); path.lineTo(x, -98f); path.lineTo(x - 8f, -110f); path.close();
+            c.drawPath(path, p);
+        }
+    }
+
     private void drawAltar(Canvas c, Game g, float t) {
         float x = g.altarX;
-        int col = g.altarState == 2 ? 0xFFFFD84A : (g.altarState == 3 ? 0xFF6A4A5A : 0xFFB06BFF);
+        int[] tc = {0xFFB06BFF, 0xFFFF4D5A, 0xFFFFD84A, 0xFFB0206A};
+        int col = g.altarState == 2 ? 0xFF8A7A4A : (g.altarState == 3 ? 0xFF6A4A5A : tc[g.altarType]);
         float pulse = 0.5f + 0.5f * (float) Math.sin(t * 4f);
         if (g.altarState == 0 || g.altarState == 1) circ(c, x, -56f, 54f + 10f * pulse, a(col, 0.12f), true, 1f);
         p.setStyle(Paint.Style.FILL);

@@ -59,7 +59,16 @@ final class Game {
     boolean levelUpPending, dead, over;
     float deadT;
     int pendingLevels;
-    final int[] cards = new int[3];
+    final int[] cards = new int[4];
+    int nCards = 3, rerolls;
+    int altarType;
+    boolean cursed;
+    float merX;
+    int merType;
+    boolean shopOpen, offGen;
+    final int[] offKind = new int[6], offA = new int[6], offB = new int[6], offCost = new int[6];
+    final boolean[] offSold = new boolean[6];
+    int nOff;
     String banner = "";
     float bannerT;
     int bannerCol = 0xFFFFFFFF;
@@ -112,12 +121,18 @@ final class Game {
         altarX = 2000f + rnd.nextFloat() * (WORLD_W - 4000f);
         if (Math.abs(altarX - portalX) < 1200f) altarX = (portalX < WORLD_W / 2f) ? portalX + 3000f : portalX - 3000f;
         altarState = 0; altarT = 0f; altarKills = 0; blessingMode = false; blessingWait = false;
+        altarType = rnd.nextInt(4); cursed = false; shopOpen = false; offGen = false;
+        float mr = rnd.nextFloat();
+        merType = mr < 0.5f ? 1 : (mr < 0.72f ? 2 : 0);
+        merX = 1500f + rnd.nextFloat() * (WORLD_W - 3000f);
+        if (Math.abs(merX - altarX) < 900f || Math.abs(merX - portalX) < 900f) merX = Math.abs(altarX - 3000f) < 800f ? 6500f : 3000f;
         int nc = 7 + rnd.nextInt(4);
         for (int i = 0; i < nc; i++) {
             Chest c = new Chest();
             Platform pl = plats.get(rnd.nextInt(plats.size()));
             c.x = pl.x + pl.w * 0.5f;
             c.y = pl.y;
+            c.cost = Math.round((16f + 5f * stage) * (0.85f + rnd.nextFloat() * 0.3f));
             chests.add(c);
         }
         spawnT = 1.2f;
@@ -287,7 +302,7 @@ final class Game {
         if (crit) d *= p.critMul();
         int ask = p.lastSkT > 0f ? p.lastSk : -1;
         if (ask >= 0) {
-            int gz = p.gemLvl(ask, 9);
+            float gz = p.gemLvl(ask, 9);
             if (gz > 0 && (e.type == Ent.FLYER || e.vy < -60f || e.y < p.y - 90f)) { d *= 1f + 0.3f * gz; e.vy += 420f; }
             if (p.resT > 0f) d *= 1f + p.resBonus * p.resStacks;
         }
@@ -302,7 +317,7 @@ final class Game {
             else if (fr < 0.3f) d *= 1f + 0.2f * p.passLvl[3];
         }
         if (ask >= 0 && !e.boss) {
-            int go = p.gemLvl(ask, 6);
+            float go = p.gemLvl(ask, 6);
             if (go > 0 && e.hp / Math.max(1f, e.maxHp) < 0.04f * go) { d = e.hp + 1f; p.ki = Math.min(p.maxKi(), p.ki + 4f * go); fx.text(e.x, e.y - e.h - 30f, "ЖНЕЦЬ", 0xFF8A5CFF, 13f); }
         }
         if (e.boss && bossIntro > 0f) d = 0f;
@@ -342,11 +357,11 @@ final class Game {
             p.inNova = false;
         }
         if (ask >= 0) {
-            int gp = p.gemLvl(ask, 5);
+            float gp = p.gemLvl(ask, 5);
             if (gp > 0 && power != 3) chainFrom(e, d * 0.25f * gp);
-            int gs = p.gemLvl(ask, 7);
+            float gs = p.gemLvl(ask, 7);
             if (gs > 0 && power != 3 && rnd.nextFloat() < Math.min(0.8f, 0.10f * gs)) e.stun = Math.max(e.stun, e.boss ? 0.2f : 1.4f);
-            int gm = p.gemLvl(ask, 8);
+            float gm = p.gemLvl(ask, 8);
             if (gm > 0) e.mark = Math.max(e.mark, 16f * gm);
         }
         // item procs
@@ -426,6 +441,10 @@ final class Game {
             kills++;
         }
         totalKills++;
+        int gd = (int) ((e.boss ? 45f + 8f * stage : (e.type == Ent.BRUTE ? 7f : (e.type == Ent.FLYER ? 3f : 2f))) * (1f + 0.08f * (stage - 1)) * (0.8f + rnd.nextFloat() * 0.4f));
+        p.gold += gd;
+        if (e.boss || e.type == Ent.BRUTE) fx.text(e.x, e.y - e.h - 22f, "+" + gd, Data.GOLD, 14f);
+        if (e.boss) { int cr = 4 + stage / 2; p.crystals += cr; fx.text(e.x, e.y - e.h - 44f, "+" + cr + " кристалів", 0xFF35E0FF, 15f); }
         float xp = e.boss ? 260f : (e.type == Ent.BRUTE ? 30f : (e.type == Ent.FLYER ? 12f : 10f));
         xp *= 1f + 0.12f * (stage - 1);
         if (p.addXp(xp)) {
@@ -472,6 +491,7 @@ final class Game {
         float d = dmg;
         if (p.st == Player.ST_CROUCH) d *= 0.4f;
         d *= 60f / (60f + p.defense());
+        if (cursed) d *= 1.3f;
         d = Math.max(1f, d);
         if (p.barrier > 0f) { float ab = Math.min(p.barrier, d); p.barrier -= ab; d -= ab; fx.ring(p.x, p.y - 40f, 10f, 80f, 0.2f, 0xFF4DFF9A); }
         p.hp -= d;
@@ -585,8 +605,9 @@ final class Game {
         int forced = -1;
         if (blessingMode) {
             int nb = 0, gd = 0;
-            while (nb < 3 && gd++ < 100) {
-                int id = Data.C_BL0 + rnd.nextInt(6);
+            nCards = 2 + rnd.nextInt(3);
+            while (nb < nCards && gd++ < 100) {
+                int id = Data.C_BL0 + rnd.nextInt(8);
                 boolean dup = false;
                 for (int i = 0; i < nb; i++) if (cards[i] == id) dup = true;
                 if (!dup) cards[nb++] = id;
@@ -596,6 +617,7 @@ final class Game {
             audio.setCharging(false, 0f);
             return;
         }
+        nCards = 3; rerolls = 0;
         switch (p.level) {
             case 2: forced = Data.C_UNL0; break;
             default: break;
@@ -619,17 +641,31 @@ final class Game {
         audio.setCharging(false, 0f);
     }
 
+    Ent.Gem rollGem(int minQ) {
+        float r = rnd.nextFloat();
+        float lk = p.effLuk() * 0.002f;
+        int q;
+        if (r < 0.004f + 0.002f * stage + lk * 0.3f) q = 4;
+        else if (r < 0.03f + 0.008f * stage + lk) q = 3;
+        else if (r < 0.12f + 0.02f * stage + lk * 2f) q = 2;
+        else if (r < 0.35f + 0.03f * stage + lk * 3f) q = 1;
+        else q = 0;
+        q = Math.max(q, minQ);
+        int lv = 1 + (int) (stage / 3f + rnd.nextFloat() * 1.2f);
+        return new Ent.Gem(rnd.nextInt(Data.GEMS), Math.min(10, lv), q);
+    }
+
+    void giveGem(Ent.Gem gm) {
+        p.bag.add(gm);
+        Codex.mark("g" + gm.type);
+        fx.text(p.x, p.y - 150f, Data.QUAL_NAME[gm.q] + " " + Data.GEM_NAME[gm.type] + " рів." + gm.lvl, Data.QUAL_COL[gm.q], 15f);
+        fx.explosion(p.x, p.y - 60f, 70f, Data.GEM_COL[gm.type]);
+        audio.play(Audio.ITEM, 1f);
+    }
+
     private void dropGems() {
         int n = 1 + (rnd.nextFloat() < 0.35f ? 1 : 0);
-        for (int i = 0; i < n; i++) {
-            int lv = 1 + (int) (stage / 3f + rnd.nextFloat() * 1.2f);
-            Ent.Gem gm = new Ent.Gem(rnd.nextInt(Data.GEMS), Math.min(10, lv));
-            p.bag.add(gm);
-            Codex.mark("g" + gm.type);
-            fx.text(p.x, p.y - 150f - i * 30f, Data.GEM_NAME[gm.type] + " рів." + gm.lvl, Data.GEM_COL[gm.type], 15f);
-            fx.explosion(p.x, p.y - 60f, 70f, Data.GEM_COL[gm.type]);
-        }
-        audio.play(Audio.ITEM, 1f);
+        for (int i = 0; i < n; i++) giveGem(rollGem(0));
     }
 
     private void applySkillCard(int id) {
@@ -668,8 +704,10 @@ final class Game {
             case Data.C_BL0 + 2: p.dmgCard += 0.25f; break;
             case Data.C_BL0 + 3: p.dashMax++; break;
             case Data.C_BL0 + 4:
-                for (int q = 0; q < 2; q++) { Ent.Gem gq = new Ent.Gem(rnd.nextInt(Data.GEMS), 1 + stage / 3 + rnd.nextInt(2)); p.bag.add(gq); Codex.mark("g" + gq.type); }
+                for (int q = 0; q < 2; q++) giveGem(rollGem(0));
                 break;
+            case Data.C_BL0 + 6: p.gold += 60 + stage * 25; p.crystals += 3; flashBanner("+ золото й кристали", Data.GOLD); break;
+            case Data.C_BL0 + 7: giveGem(rollGem(2)); break;
             case Data.C_BL0 + 5: p.heal(p.maxHp()); p.rage = 100f; break;
             case Data.C_HP: p.hpPct += 0.2f; p.heal(p.maxHp() * 0.1f); break;
             default: break;
@@ -687,21 +725,149 @@ final class Game {
 
     // ---------------- interaction ----------------
 
+    int altarGold() { return 40 + stage * 10; }
+
+    private void useAltar() {
+        if (altarType == 1) {
+            if (p.hp < p.maxHp() * 0.4f) { fx.text(p.x, p.y - 120f, "Замало здоров'я", 0xFFFF6A7A, 14f); return; }
+            p.hp -= p.maxHp() * 0.3f;
+            giveGem(rollGem(1));
+            fx.ring(altarX, -60f, 10f, 300f, 0.5f, 0xFFFF4D5A);
+            flashBanner("ЖЕРТВУ ПРИЙНЯТО", 0xFFFF4D5A);
+        } else if (altarType == 2) {
+            if (p.gold < altarGold()) { fx.text(p.x, p.y - 120f, "Потрібно " + altarGold() + " золота", 0xFFFF6A7A, 14f); return; }
+            p.gold -= altarGold();
+            p.crystals += 3;
+            spawnItem(altarX, -90f, rnd.nextInt(Data.ITEMS));
+            fx.ring(altarX, -60f, 10f, 300f, 0.5f, Data.GOLD);
+            flashBanner("ДАР ПРИЙНЯТО: +3 КРИСТАЛИ", Data.GOLD);
+        } else {
+            cursed = true;
+            giveGem(rollGem(1));
+            giveGem(rollGem(0));
+            p.crystals += 2;
+            fx.ring(altarX, -60f, 10f, 400f, 0.6f, 0xFFB0206A);
+            fx.screenFlash(0xFFB0206A, 0.3f);
+            flashBanner("ПРОКЛЯТТЯ: ВОРОГИ СИЛЬНІШІ ЦЮ ЛОКАЦІЮ", 0xFFFF4DA0);
+        }
+        altarState = 2;
+        audio.play(Audio.TRANSFORM, 0.8f);
+    }
+
+    // ---------------- торговець ----------------
+
+    void genOffers() {
+        offGen = true;
+        nOff = 0;
+        if (merType == 1) {
+            for (int i = 0; i < 3; i++) addOffer(0, rnd.nextInt(Data.ITEMS), 0, Math.round((30f + stage * 9f) * (0.85f + rnd.nextFloat() * 0.3f)));
+            Ent.Gem gm = rollGem(0);
+            addOffer(1, gm.type, gm.lvl | (gm.q << 8), Math.round((55f + stage * 10f) * (1f + gm.q * 0.6f)));
+            addOffer(2, 0, 0, 22 + stage * 5);
+            addOffer(3, rnd.nextInt(5), 0, 50 + stage * 12);
+        } else {
+            for (int i = 0; i < 2; i++) {
+                Ent.Gem gm = rollGem(2);
+                addOffer(1, gm.type, gm.lvl | (gm.q << 8), 3 + gm.q * 2);
+            }
+            addOffer(4, 0, 0, 6);
+            addOffer(5, Data.C_BL0 + 2, 0, 4);
+            addOffer(5, Data.C_BL0 + 1, 0, 3);
+            addOffer(0, rnd.nextInt(Data.ITEMS), 0, 4);
+        }
+    }
+
+    private void addOffer(int kind, int a, int b, int cost) {
+        offKind[nOff] = kind; offA[nOff] = a; offB[nOff] = b; offCost[nOff] = cost; offSold[nOff] = false;
+        nOff++;
+    }
+
+    boolean offerAffordable(int i) { return merType == 1 ? p.gold >= offCost[i] : p.crystals >= offCost[i]; }
+
+    void buyOffer(int i) {
+        if (i < 0 || i >= nOff || offSold[i] || !offerAffordable(i)) return;
+        if (offKind[i] == 4) {
+            boolean any = false;
+            for (int k = 0; k < 4; k++) { int sk = p.slotSkill[k]; if (sk >= 0 && p.sockN[sk] < 8) any = true; }
+            if (!any) return;
+        }
+        if (merType == 1) p.gold -= offCost[i]; else p.crystals -= offCost[i];
+        offSold[i] = true;
+        switch (offKind[i]) {
+            case 0: giveItem(offA[i]); break;
+            case 1: giveGem(new Ent.Gem(offA[i], offB[i] & 255, offB[i] >> 8)); break;
+            case 2: p.heal(p.maxHp()); fx.text(p.x, p.y - 120f, "Повне лікування", 0xFF4DFF88, 14f); break;
+            case 3:
+                if (offA[i] == 0) p.str += 2f; else if (offA[i] == 1) p.vit += 2f; else if (offA[i] == 2) p.agi += 2f;
+                else if (offA[i] == 3) p.spi += 2f; else p.luk += 2f;
+                break;
+            case 4:
+                for (int k = 0; k < 4; k++) { int sk = p.slotSkill[k]; if (sk >= 0 && p.sockN[sk] < 8) p.sockN[sk]++; }
+                break;
+            default:
+                if (offA[i] == Data.C_BL0 + 2) p.dmgCard += 0.25f; else { p.hpPct += 0.3f; p.heal(p.maxHp() * 0.3f); }
+                break;
+        }
+        audio.play(Audio.PICKUP, 0.9f);
+    }
+
+    void closeShop() { shopOpen = false; audio.setDuck(false); }
+
+    /** відмовитись від карток: золото замість покращення */
+    void dismantleCards() {
+        if (blessingMode) return;
+        p.gold += 15 + stage * 8;
+        audio.play(Audio.PICKUP, 0.8f);
+        pendingLevels--;
+        levelUpPending = false;
+        if (pendingLevels > 0) beginLevelUp(); else audio.setDuck(false);
+    }
+
+    int rerollCost() { return 20 + rerolls * 15; }
+
+    void rerollCards() {
+        if (blessingMode || p.gold < rerollCost()) return;
+        p.gold -= rerollCost();
+        rerolls++;
+        int r = rerolls;
+        beginLevelUp();
+        rerolls = r;
+    }
+
     String interactLabel() {
         if (p.st == Player.ST_DEAD) return null;
-        if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f) return "ВИПРОБУВАННЯ";
+        if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f) {
+            switch (altarType) {
+                case 0: return "ВИПРОБУВАННЯ";
+                case 1: return "ЖЕРТВА: -30% HP";
+                case 2: return "ДАР: " + altarGold() + " золота";
+                default: return "ПРОКЛЯТТЯ";
+            }
+        }
+        if (merType != 0 && Math.abs(p.x - merX) < 110f && p.y > -120f) return merType == 1 ? "ТОРГОВЕЦЬ" : "КРИСТАЛЬНИЙ РИНОК";
         if (Math.abs(p.x - portalX) < 100f && p.y > -120f) {
             if (portalState == 1) return "АКТИВУВАТИ ПОРТАЛ";
             if (portalState == 4) return "ДАЛІ";
         }
         for (int i = 0; i < chests.size(); i++) {
             Chest c = chests.get(i);
-            if (!c.open && Math.abs(p.x - c.x) < 80f && Math.abs(p.y - c.y) < 90f) return "ВІДКРИТИ";
+            if (!c.open && Math.abs(p.x - c.x) < 80f && Math.abs(p.y - c.y) < 90f) return "ВІДКРИТИ: " + c.cost + " зол.";
         }
         return null;
     }
 
     private void interact() {
+        if (merType != 0 && Math.abs(p.x - merX) < 110f && p.y > -120f) {
+            if (!offGen) genOffers();
+            shopOpen = true;
+            audio.setDuck(true);
+            audio.play(Audio.PICKUP, 0.7f);
+            return;
+        }
+        if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f && altarType != 0) {
+            useAltar();
+            return;
+        }
         if (altarState == 0 && Math.abs(p.x - altarX) < 100f && p.y > -120f) {
             altarState = 1; altarT = 40f; altarKills = 0;
             flashBanner("ВИПРОБУВАННЯ: " + ALTAR_GOAL + " ВБИВСТВ ЗА 40 С", 0xFFB06BFF);
@@ -732,8 +898,11 @@ final class Game {
         for (int i = 0; i < chests.size(); i++) {
             Chest c = chests.get(i);
             if (!c.open && Math.abs(p.x - c.x) < 80f && Math.abs(p.y - c.y) < 90f) {
+                if (p.gold < c.cost) { fx.text(p.x, p.y - 120f, "Потрібно " + c.cost + " золота", 0xFFFF6A7A, 14f); audio.play(Audio.HURT, 0.4f); return; }
+                p.gold -= c.cost;
                 c.open = true;
-                spawnItem(c.x, c.y - 40f, rnd.nextInt(Data.ITEMS));
+                if (rnd.nextFloat() < 0.18f) giveGem(rollGem(0));
+                else spawnItem(c.x, c.y - 40f, rnd.nextInt(Data.ITEMS));
                 fx.explosion(c.x, c.y - 20f, 50f, 0xFFFFD84A);
                 audio.play(Audio.PICKUP, 1f);
                 return;
@@ -803,7 +972,8 @@ final class Game {
             altarT -= dt;
             if (altarKills >= ALTAR_GOAL) {
                 altarState = 2;
-                flashBanner("ВИПРОБУВАННЯ ПРОЙДЕНО!", Data.GOLD);
+                p.crystals += 2;
+                flashBanner("ВИПРОБУВАННЯ ПРОЙДЕНО! +2 КРИСТАЛИ", Data.GOLD);
                 fx.explosion(altarX, -60f, 120f, 0xFFB06BFF);
                 audio.play(Audio.LEVELUP, 1f);
                 if (levelUpPending) blessingWait = true;
@@ -815,7 +985,7 @@ final class Game {
         }
         // spawn director
         if (portalState < 2 && p.st != Player.ST_DEAD) {
-            spawnT -= dt * (altarState == 1 ? 3.2f : 1f);
+            spawnT -= dt * (altarState == 1 ? 3.2f : (cursed ? 1.6f : 1f));
             if (spawnT <= 0f) {
                 int alive = 0;
                 for (int i = 0; i < enemies.size(); i++) if (!enemies.get(i).boss && enemies.get(i).hp > 0f) alive++;

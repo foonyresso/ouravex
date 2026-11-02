@@ -62,8 +62,10 @@ public final class Ent {
     }
 
     public static final class Gem {
-        int type, lvl;
+        int type, lvl, q;
         Gem(int t, int l) { type = t; lvl = l; }
+        Gem(int t, int l, int q) { type = t; lvl = l; this.q = q; }
+        float power() { return lvl * Data.QUAL_MUL[q]; }
     }
 
     public static final class Platform {
@@ -72,6 +74,7 @@ public final class Ent {
 
     public static final class Chest {
         float x, y;
+        int cost;
         boolean open;
         float t;
     }

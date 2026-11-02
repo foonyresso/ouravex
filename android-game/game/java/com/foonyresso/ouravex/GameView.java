@@ -85,6 +85,7 @@ public class GameView extends View {
     }
 
     public boolean onBack() {
+        if (screen == PLAY && game.shopOpen) { game.closeShop(); return true; }
         if (screen == PLAY && !game.levelUpPending) { screen = PAUSE; clearSel(); audio.setDuck(true); resetInput(); return true; }
         if (screen == PAUSE) { if (cfKind != 0) { cfKind = 0; return true; } if (pickerOpen) { pickerOpen = false; return true; } screen = PLAY; audio.setDuck(false); return true; }
         if (screen == DEAD) { toTitle(); return true; }
@@ -194,6 +195,7 @@ public class GameView extends View {
     private void onDown(int id, float x, float y) {
         if (screen == PAUSE) { pauseDown(id, x, y); return; }
         if (screen != PLAY) { menuTap(x, y); return; }
+        if (game.shopOpen) { shopTap(x, y); return; }
         if (game.levelUpPending) { cardTap(x, y); return; }
         int b = hitButton(x, y);
         if (id < ptrBtn.length) ptrBtn[id] = b;
@@ -344,13 +346,35 @@ public class GameView extends View {
 
     private void cardTap(float x, float y) {
         if (lvlT < 0.45f) return;
-        for (int i = 0; i < 3; i++) {
-            if (in(x, y, W / 2f + (i - 1) * 218 * S, 205 * S, 200 * S, 250 * S)) {
+        int n = game.nCards;
+        float sp = n >= 4 ? 186f : 218f, cw = n >= 4 ? 176f : 200f;
+        for (int i = 0; i < n; i++) {
+            if (in(x, y, W / 2f + (i - (n - 1) / 2f) * sp * S, 205 * S, cw * S, 250 * S)) {
                 game.chooseCard(i);
                 resetInput();
                 return;
             }
         }
+        if (!game.blessingMode) {
+            if (in(x, y, W / 2f - 130 * S, 366 * S, 230 * S, 30 * S)) { game.rerollCards(); lvlT = 0.3f; return; }
+            if (in(x, y, W / 2f + 130 * S, 366 * S, 230 * S, 30 * S)) { game.dismantleCards(); resetInput(); return; }
+        }
+    }
+
+    private int shopSel = -1;
+
+    private void shopTap(float x, float y) {
+        if (lvlT < 0.25f) return;
+        float s = S;
+        for (int i = 0; i < game.nOff; i++) {
+            float cx = W / 2f + (i % 3 - 1) * 200 * s, cy = (118 + (i / 3) * 108) * s;
+            if (in(x, y, cx, cy, 190 * s, 96 * s)) { shopSel = i; audio.play(Audio.CLICK, 0.5f); return; }
+        }
+        if (shopSel >= 0 && in(x, y, W / 2f + 200 * s, 320 * s, 150 * s, 30 * s)) {
+            game.buyOffer(shopSel);
+            return;
+        }
+        if (in(x, y, W / 2f, 366 * s, 200 * s, 28 * s)) { game.closeShop(); shopSel = -1; resetInput(); }
     }
 
     // ---------------- frame ----------------
@@ -367,7 +391,7 @@ public class GameView extends View {
 
         interactLabel = screen == PLAY ? game.interactLabel() : null;
         if (screen == PLAY) {
-            if (game.levelUpPending) {
+            if (game.levelUpPending || game.shopOpen) {
                 lvlT += dt;
             } else {
                 lvlT = 0f;
@@ -423,7 +447,8 @@ public class GameView extends View {
             drawSettings(c);
         } else {
             drawHud(c);
-            if (screen == PLAY && game.levelUpPending) drawLevelUp(c);
+            if (screen == PLAY && game.shopOpen) drawShop(c);
+            else if (screen == PLAY && game.levelUpPending) drawLevelUp(c);
             else if (screen == PAUSE) drawPause(c);
             else if (screen == DEAD) drawDead(c);
         }
@@ -928,22 +953,24 @@ public class GameView extends View {
             txt(c, lb[i], 150 * s, (150 + i * 46 + (i == 0 && has ? -1 : 5)) * s, 16, off ? 0xFF5A6080 : col, Paint.Align.CENTER, true);
             if (i == 0 && has) txt(c, SaveGame.summary(prefs), 150 * s, (150 + 12) * s, 8, 0xFF9AB0D0, Paint.Align.CENTER, false);
         }
-        for (int i = 0; i < 2; i++) {
-            float cx = wv() * s - (200 - i * 110) * s, gy = 330 * s;
-            pt.setStyle(Paint.Style.FILL);
-            pt.setColor(Render.a(Data.CLS_COL[i], 0.10f + 0.04f * pulse));
-            c.drawCircle(cx, gy - 110 * s, 96 * s, pt);
-            float[] pose = prevPose;
-            Rig.copy(pose, Rig.IDLE);
-            float b = (float) Math.sin(uiT * 3.5f + i);
-            pose[1] += b * 1.2f; pose[6] += b; pose[8] += b;
-            if (i == 1) { pose[5] = 44; pose[6] = -60; pose[7] = 38; pose[8] = -56; }
-            c.save();
-            c.translate(cx, gy);
-            c.scale(s * 1.9f, s * 1.9f);
-            Rig.draw(c, pt, 0, 0, i == 0 ? 1 : -1, pose, Data.CLS_COL[i], 1f, true, i == 0 ? 2f : 0f, Data.CLS_HAIR[i]);
-            c.restore();
+        // емблема: портал з обертовими кільцями
+        float ex = wv() * s - 170 * s, ey = 200 * s;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(0xFF35D6FF, 0.07f + 0.03f * pulse));
+        c.drawCircle(ex, ey, 130 * s, pt);
+        pt.setStyle(Paint.Style.STROKE);
+        for (int r = 0; r < 4; r++) {
+            float rad = (46 + r * 24) * s;
+            int col = r % 2 == 0 ? 0xFF35D6FF : 0xFFB06BFF;
+            pt.setStrokeWidth((3.2f - r * 0.5f) * s);
+            pt.setColor(Render.a(col, 0.8f - r * 0.12f));
+            float rot = uiT * (r % 2 == 0 ? 50f : -35f) * (1f + r * 0.3f);
+            rf.set(ex - rad, ey - rad, ex + rad, ey + rad);
+            for (int k = 0; k < 3; k++) c.drawArc(rf, rot + k * 120f, 70f, false, pt);
         }
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(0xFFFFFFFF, 0.5f + 0.3f * pulse));
+        c.drawCircle(ex, ey, (8 + 3 * pulse) * s, pt);
         if (bestStage > 0) txt(c, "Рекорд: локація " + bestStage + " · вбито " + bestKills, 24 * s, 384 * s, 10, 0xFF8890B0, Paint.Align.LEFT, false);
         txt(c, "Версія " + ver(), W - 12 * s, H - 8 * s, 9, 0xFF5A6690, Paint.Align.RIGHT, false);
     }
@@ -1062,6 +1089,8 @@ public class GameView extends View {
             }
         }
         txt(c, "РІВ. " + p.level, 222 * s, 24 * s, 13, 0xFFFFD84A, Paint.Align.LEFT, true);
+        txt(c, "● " + p.gold, 222 * s, 44 * s, 11, Data.GOLD, Paint.Align.LEFT, true);
+        txt(c, "◆ " + p.crystals, 292 * s, 44 * s, 11, 0xFF35E0FF, Paint.Align.LEFT, true);
         // items
         float ix = 14 * s, iy = 56 * s;
         for (int i = 0; i < Data.ITEMS; i++) {
@@ -1334,18 +1363,20 @@ public class GameView extends View {
         c.drawRect(0, 0, W, H, pt);
         float a = Math.min(1f, lvlT * 4f);
         txt(c, "РІВЕНЬ " + game.p.level + "!", W / 2f, 56 * s, 36, Render.a(Data.GOLD, a), Paint.Align.CENTER, true);
-        txt(c, "Обери покращення", W / 2f, 78 * s, 14, Render.a(0xFFB0B8D8, a), Paint.Align.CENTER, false);
-        for (int i = 0; i < 3; i++) {
+        txt(c, game.blessingMode ? "Благословення алтаря" : "Обери покращення", W / 2f, 78 * s, 14, Render.a(0xFFB0B8D8, a), Paint.Align.CENTER, false);
+        int nn = game.nCards;
+        float spc = nn >= 4 ? 186f : 218f, cwd = nn >= 4 ? 176f : 200f;
+        for (int i = 0; i < nn; i++) {
             float k = Math.max(0f, Math.min(1f, (lvlT - i * 0.08f) * 5f));
             if (k <= 0f) continue;
             float ease = 1f - (1f - k) * (1f - k);
             int id = game.cards[i];
             int col = Data.cardColor(id);
-            float cx = W / 2f + (i - 1) * 218 * s;
+            float cx = W / 2f + (i - (nn - 1) / 2f) * spc * s;
             float cy = 205 * s + (1f - ease) * 40 * s;
             c.save();
             c.scale(0.8f + 0.2f * ease, 0.8f + 0.2f * ease, cx, cy);
-            panel(c, cx, cy, 200 * s, 250 * s, col, 0.92f);
+            panel(c, cx, cy, cwd * s, 250 * s, col, 0.92f);
             // icon
             pt.setStyle(Paint.Style.FILL);
             pt.setColor(Render.a(col, 0.2f));
@@ -1362,6 +1393,75 @@ public class GameView extends View {
             if (id >= Data.C_UNL0 && id <= Data.C_UNLT) txt(c, "НОВЕ", cx, cy - 98 * s, 11, 0xFFFF4DDB, Paint.Align.CENTER, true);
             c.restore();
         }
+        if (!game.blessingMode && lvlT > 0.45f) {
+            boolean can = game.p.gold >= game.rerollCost();
+            button(c, W / 2f / s - 130f, 366f, 230f, 30f, "ПЕРЕКИНУТИ: " + game.rerollCost() + " зол.", can ? Data.GOLD : 0xFF5A6080, can);
+            button(c, W / 2f / s + 130f, 366f, 230f, 30f, "ВІДМОВИТИСЬ: +" + (15 + game.stage * 8) + " зол.", 0xFF4DFFB0, true);
+        }
+    }
+
+    private String offName(int i) {
+        switch (game.offKind[i]) {
+            case 0: return Data.ITEM_NAME[game.offA[i]];
+            case 1: return Data.QUAL_NAME[game.offB[i] >> 8] + " " + Data.GEM_NAME[game.offA[i]];
+            case 2: return "Цілюще зілля";
+            case 3: return "Фоліант: " + new String[]{"Сила", "Живучість", "Спритність", "Дух", "Удача"}[game.offA[i]];
+            case 4: return "Розширення гнізд";
+            default: return Data.cardTitle(game.offA[i], game.p.cls);
+        }
+    }
+
+    private String offDesc(int i) {
+        switch (game.offKind[i]) {
+            case 0: return Data.ITEM_DESC[game.offA[i]];
+            case 1: return "Камінь, рівень " + (game.offB[i] & 255) + ". " + Data.GEM_DESC[game.offA[i]];
+            case 2: return "Повністю лікує";
+            case 3: return "+2 до характеристики назавжди";
+            case 4: return "+1 гніздо каменів у кожного вміння зі слотів";
+            default: return Data.cardDesc(game.offA[i], game.p.cls);
+        }
+    }
+
+    private int offCol(int i) {
+        switch (game.offKind[i]) {
+            case 0: return Data.ITEM_COL[game.offA[i]];
+            case 1: return qcol(game.offB[i] >> 8);
+            case 2: return 0xFF4DFF88;
+            case 3: return 0xFFFF9A3C;
+            default: return 0xFFB06BFF;
+        }
+    }
+
+    private void drawShop(Canvas c) {
+        float s = S;
+        Player p = game.p;
+        boolean gold = game.merType == 1;
+        int mc = gold ? Data.GOLD : 0xFF35E0FF;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xC0060616);
+        c.drawRect(0, 0, W, H, pt);
+        panel(c, W / 2f, 190 * s, 640 * s, 300 * s, mc, 0.95f);
+        txt(c, gold ? "МАНДРІВНИЙ ТОРГОВЕЦЬ" : "КРИСТАЛЬНИЙ РИНОК", W / 2f - 300 * s, 58 * s, 18, mc, Paint.Align.LEFT, true);
+        txt(c, "● " + p.gold + "    ◆ " + p.crystals, W / 2f + 300 * s, 58 * s, 14, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+        for (int i = 0; i < game.nOff; i++) {
+            float cx = W / 2f + (i % 3 - 1) * 200 * s, cy = (118 + (i / 3) * 108) * s;
+            boolean sold = game.offSold[i];
+            int col = offCol(i);
+            boolean ok = game.offerAffordable(i);
+            panel(c, cx, cy, 190 * s, 96 * s, shopSel == i ? 0xFFFFFFFF : col, sold ? 0.4f : 0.85f);
+            txt(c, offName(i), cx, cy - 20 * s, 12, sold ? 0xFF5A6080 : col, Paint.Align.CENTER, true);
+            if (sold) { txt(c, "ПРОДАНО", cx, cy + 14 * s, 13, 0xFF5A6080, Paint.Align.CENTER, true); continue; }
+            wrapText(c, offDesc(i), cx, cy - 4 * s, 170 * s, 9, 0xFFB8C4FF);
+            txt(c, (gold ? "● " : "◆ ") + game.offCost[i], cx, cy + 38 * s, 13, ok ? mc : 0xFFFF6A7A, Paint.Align.CENTER, true);
+        }
+        if (shopSel >= 0 && shopSel < game.nOff && !game.offSold[shopSel]) {
+            boolean ok = game.offerAffordable(shopSel);
+            txt(c, offName(shopSel), W / 2f - 300 * s, 316 * s, 12, offCol(shopSel), Paint.Align.LEFT, true);
+            button(c, W / 2f / s + 200f, 320f, 150f, 30f, ok ? "КУПИТИ" : "НЕ ВИСТАЧАЄ", ok ? 0xFF4DFFB0 : 0xFF5A6080, ok);
+        } else {
+            txt(c, "Торкнись товару, щоб побачити й купити", W / 2f - 300 * s, 324 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
+        }
+        button(c, W / 2f / s, 366f, 200f, 28f, "ЗАЛИШИТИ", 0xFFFF4D6D, true);
     }
 
     // ---------------- pause / dead ----------------
@@ -1460,6 +1560,7 @@ public class GameView extends View {
         if (cfKind != 0) return false;
         if (pauseTab == 2 && selKind == 4 && selA >= 0 && selB >= 0 && p.sock[selA][selB] != null) return n == 1;
         if (pauseTab == 2 && selKind == 6 && selA >= 0 && selA < p.bag.size() && pickerOpen) return n == 1;
+        if (pauseTab == 1 && selKind == 2 && selA >= 0 && selA < p.bag.size()) return n == 1;
         return false;
     }
 
@@ -1500,10 +1601,10 @@ public class GameView extends View {
                 selKind = 3; selA = hitA;
                 audio.play(Audio.CLICK, 0.7f);
             } else if (k0 == 2 && hitK == 2 && hitA != a0 && a0 < p.bag.size() && hitA < p.bag.size()
-                    && p.bag.get(a0).type == p.bag.get(hitA).type) {
+                    && p.bag.get(a0).type == p.bag.get(hitA).type && p.bag.get(a0).q == p.bag.get(hitA).q) {
                 cfKind = 1; cfA = a0; cfB = hitA;
                 Ent.Gem g1 = p.bag.get(a0), g2 = p.bag.get(hitA);
-                cfText = "Об'єднати два камені «" + Data.GEM_NAME[g1.type] + "» у один рівня " + Math.min(10, Math.max(g1.lvl, g2.lvl) + 1) + "?";
+                cfText = "Об'єднати два камені «" + gemTitle(g1) + "» у один рівня " + Math.min(10, Math.max(g1.lvl, g2.lvl) + 1) + "?";
             }
             return;
         }
@@ -1530,10 +1631,14 @@ public class GameView extends View {
                 if (selKind == 4 && p.sock[selA][selB] != null) {
                     p.bag.add(p.sock[selA][selB]); p.sock[selA][selB] = null;
                     selKind = 0; audio.play(Audio.PICKUP, 0.6f);
+                } else if (selKind == 2 && selA >= 0 && selA < p.bag.size()) {
+                    Ent.Gem gg = p.bag.get(selA);
+                    cfKind = 3; cfA = selA;
+                    cfText = "Розібрати «" + gemTitle(gg) + "» (рів. " + gg.lvl + ") на " + dismValue(gg) + " кристалів? Камінь зникне.";
                 } else if (selKind == 6 && selA >= 0 && selA < p.bag.size() && pickSk >= 0) {
                     Ent.Gem gg = p.bag.get(selA);
                     cfKind = 2; cfA = selA; cfB = pickJ;
-                    cfText = "Вставити «" + Data.GEM_NAME[gg.type] + "» (рів. " + gg.lvl + ") у вміння «" + Data.SKILL_NAME[p.cls][pickSk] + "»?";
+                    cfText = "Вставити «" + gemTitle(gg) + "» (рів. " + gg.lvl + ") у вміння «" + Data.SKILL_NAME[p.cls][pickSk] + "»?";
                 }
                 break;
             default: break;
@@ -1542,7 +1647,12 @@ public class GameView extends View {
 
     private void doConfirm() {
         Player p = game.p;
-        if (cfKind == 1 && cfA < p.bag.size() && cfB < p.bag.size()) {
+        if (cfKind == 3 && cfA < p.bag.size()) {
+            p.crystals += dismValue(p.bag.get(cfA));
+            p.bag.remove(cfA);
+            selKind = 0;
+            audio.play(Audio.PICKUP, 0.8f);
+        } else if (cfKind == 1 && cfA < p.bag.size() && cfB < p.bag.size()) {
             Ent.Gem a = p.bag.get(cfA), b = p.bag.get(cfB);
             b.lvl = Math.min(10, Math.max(a.lvl, b.lvl) + 1);
             p.bag.remove(cfA);
@@ -1551,7 +1661,7 @@ public class GameView extends View {
         } else if (cfKind == 2 && cfA < p.bag.size() && pickSk >= 0) {
             Ent.Gem g2 = p.bag.get(cfA);
             Ent.Gem same = null;
-            for (int q = 0; q < p.sockN[pickSk]; q++) if (p.sock[pickSk][q] != null && p.sock[pickSk][q].type == g2.type) same = p.sock[pickSk][q];
+            for (int q = 0; q < p.sockN[pickSk]; q++) if (p.sock[pickSk][q] != null && p.sock[pickSk][q].type == g2.type && p.sock[pickSk][q].q == g2.q) same = p.sock[pickSk][q];
             if (same != null) same.lvl = Math.min(10, Math.max(same.lvl, g2.lvl) + 1);
             else if (p.sock[pickSk][pickJ] == null) p.sock[pickSk][pickJ] = g2;
             else { cfKind = 0; return; }
@@ -1561,6 +1671,16 @@ public class GameView extends View {
         }
         cfKind = 0;
     }
+
+    private int qcol(int q) {
+        if (q < 4) return Data.QUAL_COL[q];
+        float h = (uiT * 120f) % 360f;
+        return android.graphics.Color.HSVToColor(new float[]{h, 0.55f, 1f});
+    }
+
+    private String gemTitle(Ent.Gem g) { return Data.QUAL_NAME[g.q] + " " + Data.GEM_NAME[g.type]; }
+
+    private int dismValue(Ent.Gem g) { return 1 + g.q * 2 + g.lvl / 3; }
 
     private void gemShape(Canvas c, float x, float y, float r, int col) {
         path.reset();
@@ -1687,10 +1807,11 @@ public class GameView extends View {
         for (int i = 0; i < slots; i++) {
             boolean has = i < p.bag.size();
             boolean dragged = dragging && pdKind == 2 && pdA == i;
-            boolean target = dragging && pdKind == 2 && has && i != pdA && p.bag.get(i).type == p.bag.get(pdA).type
+            boolean target = dragging && pdKind == 2 && has && i != pdA && p.bag.get(i).type == p.bag.get(pdA).type && p.bag.get(i).q == p.bag.get(pdA).q
                     && inV(dgX / s, dgY / s, igX(i), igY(i), 36f, 36f);
             int col = has ? Data.GEM_COL[p.bag.get(i).type] : 0xFF607098;
-            cell(c, igX(i), igY(i), 36f, col, (selKind == 2 && selA == i) || target, has);
+            int qc = has ? qcol(p.bag.get(i).q) : col;
+            cell(c, igX(i), igY(i), 36f, qc, (selKind == 2 && selA == i) || target, has);
             if (has && !dragged) {
                 gemShape(c, igX(i) * s, (igY(i) - 1f) * s, 12 * s, col);
                 txt(c, String.valueOf(p.bag.get(i).lvl), (igX(i) + 16f) * s, (igY(i) + 15f) * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
@@ -1727,7 +1848,7 @@ public class GameView extends View {
                 boolean ss = selKind == 4 && selA == sk && selB == j;
                 float cs = sockCell() - 3f;
                 if (gm != null) {
-                    cell(c, sx, sy, cs, Data.GEM_COL[gm.type], ss, true);
+                    cell(c, sx, sy, cs, qcol(gm.q), ss, true);
                     gemShape(c, sx * s, sy * s, cs * 0.34f * s, Data.GEM_COL[gm.type]);
                 } else {
                     cell(c, sx, sy, cs, 0xFF8890B0, ss, false);
@@ -1757,7 +1878,7 @@ public class GameView extends View {
             if (p.bag.isEmpty()) txt(c, "Сумка порожня. Камені випадають з босів і скринь.", 28 * s, 110 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
             for (int i = 0; i < p.bag.size() && i < pkCols() * 4; i++) {
                 int col = Data.GEM_COL[p.bag.get(i).type];
-                cell(c, pkX(i), pkY(i), 38f, col, selKind == 6 && selA == i, true);
+                cell(c, pkX(i), pkY(i), 38f, qcol(p.bag.get(i).q), selKind == 6 && selA == i, true);
                 gemShape(c, pkX(i) * s, (pkY(i) - 1f) * s, 12 * s, col);
                 txt(c, String.valueOf(p.bag.get(i).lvl), (pkX(i) + 17f) * s, (pkY(i) + 16f) * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
             }
@@ -1774,7 +1895,7 @@ public class GameView extends View {
             desc = Data.ITEM_DESC[selA] + (p.items[selA] > 1 ? " (за кожну копію)" : "");
         } else if ((selKind == 2 || selKind == 6) && selA >= 0 && selA < p.bag.size()) {
             Ent.Gem g = p.bag.get(selA);
-            col = Data.GEM_COL[g.type]; name = Data.GEM_NAME[g.type]; sub = "Камінь, рівень " + g.lvl; desc = Data.GEM_DESC[g.type];
+            col = qcol(g.q); name = gemTitle(g); sub = "Рівень " + g.lvl + " · сила " + String.format("%.1f", g.power()); desc = Data.GEM_DESC[g.type];
             gx = 1;
         } else if (selKind == 3 && selA >= 0 && p.slotSkill[selA] >= 0) {
             int sk = p.slotSkill[selA];
@@ -1784,7 +1905,7 @@ public class GameView extends View {
             extra = "Енергія " + (int) p.skillCost(sk) + " · Перезарядка " + String.format("%.1f", p.skCdMax(sk)) + " с · Гнізда " + p.sockN[sk];
         } else if (selKind == 4 && selA >= 0) {
             Ent.Gem g = p.sock[selA][selB];
-            if (g != null) { col = Data.GEM_COL[g.type]; name = Data.GEM_NAME[g.type]; sub = "У гнізді, рівень " + g.lvl; desc = Data.GEM_DESC[g.type]; gx = 1; }
+            if (g != null) { col = qcol(g.q); name = gemTitle(g); sub = "У гнізді · рівень " + g.lvl + " · сила " + String.format("%.1f", g.power()); desc = Data.GEM_DESC[g.type]; gx = 1; }
             else { name = "Порожнє гніздо"; sub = Data.SKILL_NAME[p.cls][selA]; desc = "Обери камінь у списку й вставити його."; }
         } else if (selKind == 5 && selA >= 0 && p.passLvl[selA] > 0) {
             col = Data.PAS_COL[selA]; name = Data.PAS_NAME[selA]; sub = "Пасивне, рівень " + p.passLvl[selA] + " / 5"; desc = Data.PAS_DESC[selA];
@@ -1807,7 +1928,7 @@ public class GameView extends View {
         txt(c, sub, (px + 46f) * s, (y + 12f) * s, 9, 0xFFFFD84A, Paint.Align.LEFT, true);
         y = wrapL(c, desc, px + 12f, y + 38f, pw - 24f, 10, 0xFFD0D8FF);
         if (extra != null) wrapL(c, extra, px + 12f, y + 6f, pw - 24f, 9, 0xFF8FD8FF);
-        if (hasAct(1)) button(c, px + 84f, 326f, 148f, 26f, selKind == 6 ? "ВСТАВИТИ" : "ВИЙНЯТИ", selKind == 6 ? 0xFF4DFFB0 : 0xFFFFB020, true);
+        if (hasAct(1)) button(c, px + 84f, 326f, 148f, 26f, selKind == 6 ? "ВСТАВИТИ" : (selKind == 2 ? "РОЗІБРАТИ" : "ВИЙНЯТИ"), selKind == 6 ? 0xFF4DFFB0 : (selKind == 2 ? 0xFF35E0FF : 0xFFFFB020), true);
     }
 
     private void statRow(Canvas c, float x, float y, float w, float h, int idx, String name, String val, int col) {

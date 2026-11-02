@@ -25,25 +25,25 @@ final class Skills {
         p.skCd[i] = p.skCdMax(i);
         p.lastSk = i; p.lastSkT = 1.6f;
         if (p.passLvl[1] > 0) { p.rhythm = 3; p.rhythmT = 4f; }
-        int g0 = p.gemLvl(i, 0);
+        float g0 = p.gemLvl(i, 0);
         if (g0 > 0) g.explodeAt(p.x, p.y - 40f, 120f + 10f * g0, 8f * g0, 0xFFFF4D5A);
-        int g1 = p.gemLvl(i, 1);
+        float g1 = p.gemLvl(i, 1);
         if (g1 > 0 && g.rnd.nextFloat() < Math.min(0.7f, 0.18f * g1)) {
             p.skCd[i] = 0f; p.ki = Math.min(p.maxKi(), p.ki + cost * 0.5f);
             g.fx.ring(p.x, p.y - 40f, 10f, 110f, 0.3f, 0xFF4D8CFF);
             g.fx.text(p.x, p.y - 120f, "ВІДЛУННЯ", 0xFF4D8CFF, 13f);
         }
-        int g2 = p.gemLvl(i, 2);
+        float g2 = p.gemLvl(i, 2);
         if (g2 > 0) { p.dashCharge = Math.min((float) p.dashMax, p.dashCharge + 1f); p.speedT = 1.5f + 0.3f * g2; }
-        int g3 = p.gemLvl(i, 3);
+        float g3 = p.gemLvl(i, 3);
         if (g3 > 0) {
             float want = p.maxHp() * 0.04f * g3, room = p.maxHp() - p.hp;
             p.heal(Math.min(want, room));
             if (want > room) p.barrier = Math.min(80f, p.barrier + (want - room));
         }
-        int g4 = p.gemLvl(i, 4);
+        float g4 = p.gemLvl(i, 4);
         if (g4 > 0) { p.resStacks = Math.min(5, p.resStacks + 1); p.resBonus = 0.06f * g4; p.resT = 6f; }
-        int g10 = p.gemLvl(i, 10);
+        float g10 = p.gemLvl(i, 10);
         if (g10 > 0) {
             for (int j = 0; j < g.enemies.size(); j++) {
                 Enemy e = g.enemies.get(j);

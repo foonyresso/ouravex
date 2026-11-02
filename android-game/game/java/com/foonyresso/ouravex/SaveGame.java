@@ -33,7 +33,7 @@ final class SaveGame {
             j.put("str", p.str); j.put("vit", p.vit); j.put("agi", p.agi); j.put("spi", p.spi); j.put("luk", p.luk);
             j.put("dmgCard", p.dmgCard); j.put("regenCard", p.regenCard); j.put("dashCdCard", p.dashCdCard);
             j.put("kiEffCard", p.kiEffCard); j.put("hpPct", p.hpPct); j.put("dashMax", p.dashMax);
-            j.put("hp", p.hp); j.put("ki", p.ki);
+            j.put("gold", p.gold); j.put("cry", p.crystals); j.put("hp", p.hp); j.put("ki", p.ki);
             j.put("items", arr(p.items)); j.put("skLvl", arr(p.skLvl)); j.put("skBr", arr(p.skBr));
             j.put("slots", arr(p.slotSkill)); j.put("pass", arr(p.passLvl)); j.put("passSlot", arr(p.passSlot));
             j.put("sockN", arr(p.sockN));
@@ -41,11 +41,11 @@ final class SaveGame {
             JSONArray so = new JSONArray();
             for (int i = 0; i < Data.NSK; i++) for (int k = 0; k < 8; k++) {
                 Ent.Gem gm = p.sock[i][k];
-                if (gm != null) so.put(new JSONArray().put(i).put(k).put(gm.type).put(gm.lvl));
+                if (gm != null) so.put(new JSONArray().put(i).put(k).put(gm.type).put(gm.lvl).put(gm.q));
             }
             j.put("sock", so);
             JSONArray bg = new JSONArray();
-            for (Ent.Gem gm : p.bag) bg.put(new JSONArray().put(gm.type).put(gm.lvl));
+            for (Ent.Gem gm : p.bag) bg.put(new JSONArray().put(gm.type).put(gm.lvl).put(gm.q));
             j.put("bag", bg);
             pr.edit().putString("save", j.toString()).apply();
         } catch (Exception ignored) { }
@@ -65,6 +65,7 @@ final class SaveGame {
             p.dmgCard = (float) j.getDouble("dmgCard"); p.regenCard = (float) j.getDouble("regenCard");
             p.dashCdCard = (float) j.getDouble("dashCdCard"); p.kiEffCard = (float) j.getDouble("kiEffCard");
             p.hpPct = (float) j.getDouble("hpPct"); p.dashMax = j.getInt("dashMax");
+            p.gold = j.optInt("gold", 0); p.crystals = j.optInt("cry", 0);
             rd(j.getJSONArray("items"), p.items); rd(j.getJSONArray("skLvl"), p.skLvl); rd(j.getJSONArray("skBr"), p.skBr);
             rd(j.getJSONArray("slots"), p.slotSkill); rd(j.getJSONArray("pass"), p.passLvl); rd(j.getJSONArray("passSlot"), p.passSlot);
             rd(j.getJSONArray("sockN"), p.sockN);
@@ -73,11 +74,11 @@ final class SaveGame {
             JSONArray so = j.getJSONArray("sock");
             for (int i = 0; i < so.length(); i++) {
                 JSONArray e = so.getJSONArray(i);
-                p.sock[e.getInt(0)][e.getInt(1)] = new Ent.Gem(e.getInt(2), e.getInt(3));
+                p.sock[e.getInt(0)][e.getInt(1)] = new Ent.Gem(e.getInt(2), e.getInt(3), e.optInt(4, 0));
             }
             p.bag.clear();
             JSONArray bg = j.getJSONArray("bag");
-            for (int i = 0; i < bg.length(); i++) p.bag.add(new Ent.Gem(bg.getJSONArray(i).getInt(0), bg.getJSONArray(i).getInt(1)));
+            for (int i = 0; i < bg.length(); i++) p.bag.add(new Ent.Gem(bg.getJSONArray(i).getInt(0), bg.getJSONArray(i).getInt(1), bg.getJSONArray(i).optInt(2, 0)));
             g.runTime = (float) j.getDouble("runTime"); g.totalKills = j.getInt("kills"); g.bossesKilled = j.getInt("bosses");
             g.stage = j.getInt("stage") - 1;
             g.startStage();

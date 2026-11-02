@@ -43,6 +43,7 @@ final class Player {
     float lastSkT, rhythmT, speedT, revengeT, soulBuffT, resBonus, resT, barrier, thunderT = 4f;
     int rhythm, souls, resStacks;
     boolean inNova, soulFree;
+    int gold, crystals;
     boolean passFull() { return passSlot[0] >= 0 && passSlot[1] >= 0; }
     void addPassive(int id) {
         Codex.mark("p" + id);
@@ -98,8 +99,9 @@ final class Player {
         bag.clear();
         for (int i = 0; i < Data.NPAS; i++) passLvl[i] = 0;
         passSlot[0] = passSlot[1] = -1;
+        gold = 0; crystals = 0;
         lastSk = -1; lastSkT = rhythmT = speedT = revengeT = soulBuffT = resT = barrier = 0f; thunderT = 4f; rhythm = souls = resStacks = 0; soulFree = false;
-        for (int i = 0; i < Data.NSK; i++) { sockN[i] = 5; for (int j = 0; j < 8; j++) sock[i][j] = null; }
+        for (int i = 0; i < Data.NSK; i++) { sockN[i] = 2; for (int j = 0; j < 8; j++) sock[i][j] = null; }
         for (int i = 0; i < 4; i++) slotSkill[i] = -1;
         hp = maxHp();
         ki = maxKi() * 0.4f;
@@ -176,9 +178,9 @@ final class Player {
         float base = Data.SKILL_COST[cls][i];
         return base * kiEffCard * (1f - 0.1f * skLvl[i]) * (skBr[i] == 2 ? 0.8f : 1f) * 1f;
     }
-    int gemLvl(int sk, int type) {
-        int s = 0;
-        for (int j = 0; j < 8; j++) if (sock[sk][j] != null && sock[sk][j].type == type) s += sock[sk][j].lvl;
+    float gemLvl(int sk, int type) {
+        float s = 0f;
+        for (int j = 0; j < 8; j++) if (sock[sk][j] != null && sock[sk][j].type == type) s += sock[sk][j].power();
         return s;
     }
     float skMul(int i) { return 1f + 0.3f * skLvl[i] + (skBr[i] == 1 ? 0.5f : 0f); }

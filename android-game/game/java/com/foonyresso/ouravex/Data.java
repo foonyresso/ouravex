@@ -80,6 +80,10 @@ public final class Data {
             "Вир. Застосування втягує ворогів навколо до тебе"};
     public static final int[] GEM_COL = {0xFFFF4D5A, 0xFF4D8CFF, 0xFFFFC94A, 0xFF4DFF9A, 0xFFB06BFF, 0xFFE8F0FF, 0xFF8A5CFF, 0xFFFF9A2E, 0xFFFF7AC8, 0xFF35E0D0, 0xFFC8B8FF};
 
+    public static final String[] QUAL_NAME = {"Звичайний", "Рідкісний", "Епічний", "Легендарний", "Міфічний"};
+    public static final int[] QUAL_COL = {0xFFD0D8E8, 0xFF4D8CFF, 0xFFFF4D5A, 0xFFFFD84A, 0xFFFF7AF0};
+    public static final float[] QUAL_MUL = {1f, 1.5f, 2.1f, 3f, 4.2f};
+
     // ---- items ----
     public static final int ITEMS = 12;
     public static final String[] ITEM_NAME = {
@@ -97,8 +101,8 @@ public final class Data {
             0xFFB8C4FF, 0xFFFFE27A, 0xFFE0502A, 0xFFB06BFF, 0xFFFFD84A};
 
     // ---- cards ----
-    public static final int CARDS = 56;
-    public static final int C_PS = 46;
+    public static final int CARDS = 58;
+    public static final int C_PS = 48;
     public static final int C_BL0 = 40;
     public static final int C_UNL4 = 19, C_UPG4 = 22, C_XP = 25, C_BRA = 26, C_BRB = 33;
 
@@ -119,7 +123,7 @@ public final class Data {
         if ((k = brbSkill(id)) >= 0) return SKILL_NAME[cls][k] + ": Швидкість";
         if (id == C_XP) return "Слоти зайняті";
         if (id >= C_PS) return PAS_NAME[id - C_PS];
-        if (id >= C_BL0 && id < C_PS) return new String[]{"Гнізда каменів", "Міцна плоть", "Гнів предків", "Тінь вітру", "Скарб алтаря", "Відродження"}[id - C_BL0];
+        if (id >= C_BL0 && id < C_PS) return new String[]{"Гнізда каменів", "Міцна плоть", "Гнів предків", "Тінь вітру", "Скарб алтаря", "Відродження", "Жменя скарбів", "Дар самоцвіту"}[id - C_BL0];
         switch (id) {
             case C_STR: return "+2 Сила";
             case C_VIT: return "+2 Живучість";
@@ -147,7 +151,7 @@ public final class Data {
         if (brbSkill(id) >= 0) return "ГІЛКА РОЗВИТКУ: перезарядка -35%, вартість -20%";
         if (id == C_XP) return "Нове вміння не вміщається. Перетворити на досвід: +50% рівня";
         if (id >= C_PS) return "ПАСИВНЕ. " + PAS_DESC[id - C_PS];
-        if (id >= C_BL0 && id < C_PS) return new String[]{"+1 гніздо каменів у кожного вміння з слотів (до 8)", "+30% максимального HP", "+25% шкоди", "+1 заряд ривка", "2 випадкові камені", "Повне лікування і 100% люті"}[id - C_BL0];
+        if (id >= C_BL0 && id < C_PS) return new String[]{"+1 гніздо каменів у кожного вміння зі слотів (до 8)", "+30% максимального HP", "+25% шкоди", "+1 заряд ривка", "2 випадкові камені", "Повне лікування і 100% люті", "Золото й 3 кристали", "Камінь високої якості"}[id - C_BL0];
         switch (id) {
             case C_STR: return "Більше шкоди від усіх атак";
             case C_VIT: return "Більше HP та захисту";
