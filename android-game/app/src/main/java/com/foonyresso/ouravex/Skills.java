@@ -209,7 +209,7 @@ final class Skills {
                     for (int i = 0; i < 14; i++) {
                         float a = i * 6.2832f / 14f;
                         g.newProj(2, p.x, p.y - 50f, (float) Math.cos(a) * 520f, (float) Math.sin(a) * 520f, 8f,
-                                11f * mul, 1.2f, 55f, col, false);
+                                11f * mul, 1.2f, 55f, col, true);
                     }
                     g.fx.ring(p.x, p.y - 50f, 10f, 220f, 0.35f, col);
                     g.fx.flash(p.x, p.y - 50f, 30f, 120f, 0.2f, 0xFFFFFFFF);
@@ -228,7 +228,7 @@ final class Skills {
                 float base = p.aimAngle(x, y);
                 for (int i = -2; i <= 2; i++) {
                     float a = base + i * 0.17f;
-                    g.newProj(2, x, y, (float) Math.cos(a) * 640f, (float) Math.sin(a) * 640f, 8f, 9f * mul, 1.1f, 45f, col, false);
+                    g.newProj(2, x, y, (float) Math.cos(a) * 640f, (float) Math.sin(a) * 640f, 8f, 9f * mul, 1.1f, 45f, col, true);
                 }
                 g.fx.flash(x, y, 18f, 4f, 0.08f, 0xFFFFFFFF);
                 g.audio.play(Audio.SHOOT, 0.6f);
@@ -247,11 +247,11 @@ final class Skills {
                     float dx = e.x - p.x, dy = e.y - p.y;
                     if (dx * dx + dy * dy > 700f * 700f) continue;
                     n++;
-                    g.newProj(2, e.x, e.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, false);
+                    g.newProj(2, e.x, e.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, true);
                     g.fx.ring(e.x, e.y - e.h, 6f, 50f, 0.3f, col);
                 }
                 if (n == 0) for (int i = -2; i <= 2; i++)
-                    g.newProj(2, p.x + p.face * 220f + i * 90f, p.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, false);
+                    g.newProj(2, p.x + p.face * 220f + i * 90f, p.y - 520f, 0f, 760f, 11f, 16f * mul, 1.2f, 70f, col, true);
                 g.audio.play(Audio.SHOOT, 0.8f);
             }
             if (p.stT >= 0.5f) end(p);
