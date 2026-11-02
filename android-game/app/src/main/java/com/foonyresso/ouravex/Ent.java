@@ -16,6 +16,7 @@ public final class Ent {
         float t;                     // state timer
         float cd;                    // attack cooldown
         float stun, flash, jt;
+        int bvar;
         float kbResist;              // 0..1
         float armor;                 // >0 => light hits do not stagger
         float a1, a2, a3;            // misc AI vars

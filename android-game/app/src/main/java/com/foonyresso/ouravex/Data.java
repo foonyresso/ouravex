@@ -15,7 +15,7 @@ public final class Data {
 
     public static final String[] DIFF_NAME = {"ЛЕГКО", "СЕРЕДНЬО", "ВАЖКО"};
 
-    public static final String[] BOSS_NAME = {"КОЛОС", "СПЕКТР"};
+    public static final String[] BOSS_NAME = {"КОЛОС", "СПЕКТР", "ТИРАН", "ЖНЕЦЬ"};
 
     // ---- skills ----
     public static final String[][] SKILL_NAME = {
@@ -151,5 +151,7 @@ public final class Data {
             {0xFF0A0A24, 0xFF2A1450, 0xFF35D6FF, 0xFF120E2A},
             {0xFF1A0820, 0xFF4A1030, 0xFFFF4D8A, 0xFF1E0A1C},
             {0xFF06201E, 0xFF0C4A48, 0xFF4DFFB0, 0xFF0A1C1A},
-            {0xFF1E1606, 0xFF50380C, 0xFFFFB02E, 0xFF1C1408}};
+            {0xFF1E1606, 0xFF50380C, 0xFFFFB02E, 0xFF1C1408},
+            {0xFF08182A, 0xFF144470, 0xFF4DB8FF, 0xFF08141E},
+            {0xFF240808, 0xFF661A0C, 0xFFFF6A3A, 0xFF1C0A06}};
 }

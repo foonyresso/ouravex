@@ -193,8 +193,8 @@ final class Game {
             case Ent.GRUNT: return 0xFFFF4D6D;
             case Ent.FLYER: return 0xFFB06BFF;
             case Ent.BRUTE: return 0xFFFFB020;
-            case Ent.BOSS1: return 0xFFFF3A3A;
-            default: return 0xFF9A5CFF;
+            case Ent.BOSS1: return e.bvar == 1 ? 0xFFFF8A2A : 0xFFFF3A3A;
+            default: return e.bvar == 1 ? 0xFF3AE0C8 : 0xFF9A5CFF;
         }
     }
 
@@ -224,15 +224,21 @@ final class Game {
     }
 
     void spawnBoss() {
-        int which = lastBoss < 0 ? rnd.nextInt(2) : 1 - lastBoss;
+        int which;
+        do { which = rnd.nextInt(4); } while (which == lastBoss);
         lastBoss = which;
         Enemy b = new Enemy();
         b.boss = true;
-        b.type = which == 0 ? Ent.BOSS1 : Ent.BOSS2;
+        b.type = (which & 1) == 0 ? Ent.BOSS1 : Ent.BOSS2;
+        b.bvar = which >= 2 ? 1 : 0;
         if (which == 0) {
             b.w = 46f; b.h = 150f; b.hp = 900f; b.dmg = 26f; b.speed = 90f;
-        } else {
+        } else if (which == 1) {
             b.w = 26f; b.h = 96f; b.hp = 700f; b.dmg = 20f; b.speed = 140f;
+        } else if (which == 2) {
+            b.w = 40f; b.h = 140f; b.hp = 1050f; b.dmg = 30f; b.speed = 125f;
+        } else {
+            b.w = 24f; b.h = 92f; b.hp = 820f; b.dmg = 24f; b.speed = 200f;
         }
         b.hp *= hpScale * (1f + 0.15f * (stage - 1));
         b.maxHp = b.hp;

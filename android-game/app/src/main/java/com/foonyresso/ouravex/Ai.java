@@ -271,7 +271,7 @@ final class Ai {
     private static void boss1(Game g, Enemy e, float dt) {
         Player p = g.p;
         float dx = p.x - e.x;
-        float as = g.atkSpd * (e.phase == 1 ? 1.2f : 1f);
+        float as = g.atkSpd * (e.phase == 1 ? 1.2f : 1f) * (e.bvar == 1 ? 1.3f : 1f);
         int col = Game.enemyColor(e);
         switch (e.state) {
             case B_INTRO:
@@ -392,7 +392,7 @@ final class Ai {
             tl.color = col;
         } else {
             e.state = B_D;
-            int n = 4 + e.phase * 2 + (g.diff == 2 ? 1 : 0);
+            int n = 4 + e.phase * 2 + (g.diff == 2 ? 1 : 0) + e.bvar * 3;
             float maxT = 0f;
             for (int i = 0; i < n; i++) {
                 float tx = Player.clamp(p.x + (i - (n - 1) * 0.5f) * 115f + (i == 0 ? 0f : g.rnd.nextFloat() * 60f - 30f),
@@ -411,7 +411,7 @@ final class Ai {
     private static void boss2(Game g, Enemy e, float dt) {
         Player p = g.p;
         float dx = p.x - e.x;
-        float as = g.atkSpd * (e.phase == 1 ? 1.2f : 1f);
+        float as = g.atkSpd * (e.phase == 1 ? 1.2f : 1f) * (e.bvar == 1 ? 1.25f : 1f);
         int col = Game.enemyColor(e);
         float cy = e.y - e.h * 0.5f;
         e.face = sgn(dx);
@@ -459,7 +459,7 @@ final class Ai {
                     g.audio.play(Audio.TELEPORT, 0.9f);
                     g.shake(0.25f);
                     e.n1++;
-                    if (e.phase == 1 && e.n1 < 2) startSlash(g, e, as);
+                    if ((e.phase == 1 || e.bvar == 1) && e.n1 < (e.bvar == 1 ? 3 : 2)) startSlash(g, e, as);
                     else { e.state = B_RECOVER; e.t = 0f; e.a3 = 0.7f; e.cd = 1.5f / as; }
                 }
                 break;
@@ -508,7 +508,7 @@ final class Ai {
         g.audio.play(Audio.WARN, 0.5f);
         if (pat == 0) {
             e.state = B_A;
-            int n = 1 + e.phase * 2 + (g.diff == 2 ? 1 : 0);
+            int n = 1 + e.phase * 2 + (g.diff == 2 ? 1 : 0) + e.bvar * 2;
             float a = (float) Math.atan2((p.y - 45f) - cy, p.x - e.x);
             float T = 1.05f / as;
             for (int i = 0; i < n; i++) {

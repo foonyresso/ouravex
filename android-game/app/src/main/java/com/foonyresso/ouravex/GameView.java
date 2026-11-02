@@ -821,7 +821,7 @@ public class GameView extends View {
             float bw = 420 * s, bxx = W / 2f - bw / 2, byy = 58 * s;
             float f = game.boss.hp / game.boss.maxHp;
             bar(c, bxx, byy, bw, 12 * s, f, game.boss.phase == 1 ? 0xFFFF6A3A : 0xFFFF3050);
-            txt(c, Data.BOSS_NAME[game.boss.type == Ent.BOSS1 ? 0 : 1], W / 2f, byy + 26 * s, 13, 0xFFFFFFFF, Paint.Align.CENTER, true);
+            txt(c, Data.BOSS_NAME[(game.boss.type == Ent.BOSS1 ? 0 : 1) + 2 * game.boss.bvar], W / 2f, byy + 26 * s, 13, 0xFFFFFFFF, Paint.Align.CENTER, true);
         }
         // combo
         if (p.combo >= 3 && p.comboT > 0f) {
