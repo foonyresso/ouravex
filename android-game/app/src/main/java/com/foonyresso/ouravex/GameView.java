@@ -269,23 +269,40 @@ public class GameView extends View {
             }
             if (in(x, y, W / 2f, 332 * s, 240 * s, 48 * s)) startRun();
         } else if (screen == PAUSE) {
-            for (int k = 0; k < 4; k++) {
-                if (in(x, y, W / 2f + (k - 1.5f) * 78 * s, 318 * s, 72 * s, 26 * s)) {
-                    if (pickSlot < 0) pickSlot = k;
-                    else {
-                        int t = game.p.slotSkill[pickSlot];
-                        game.p.slotSkill[pickSlot] = game.p.slotSkill[k];
-                        game.p.slotSkill[k] = t;
-                        pickSlot = -1;
-                    }
-                    audio.play(Audio.CLICK, 0.6f);
+            for (int t = 0; t < 3; t++) {
+                if (in(x, y, W / 2f + (t - 1) * 132 * s, 22 * s, 124 * s, 26 * s)) {
+                    pauseTab = t; pickSlot = -1; audio.play(Audio.CLICK, 0.6f);
                     return;
                 }
             }
-            if (in(x, y, W / 2f - 130 * s, 350 * s, 220 * s, 40 * s)) {
+            if (pauseTab == 1) {
+                int[] own = ownedItems();
+                float cell = 38 * s, gap = 4 * s;
+                for (int i = 0; i < own.length; i++) {
+                    float cx = 32 * s + (i % 10) * (cell + gap) + cell / 2f, cy = 80 * s + (i / 10) * (cell + gap) + cell / 2f;
+                    if (in(x, y, cx, cy, cell, cell)) { selItem = own[i]; audio.play(Audio.CLICK, 0.5f); return; }
+                }
+            } else if (pauseTab == 2) {
+                float gap = 10 * s, cw = (wv() * s - 64 * s - 3 * gap) / 4f;
+                for (int k = 0; k < 4; k++) {
+                    float cx = 32 * s + cw / 2f + k * (cw + gap);
+                    if (in(x, y, cx, 190 * s, cw, 230 * s)) {
+                        if (pickSlot < 0) pickSlot = k;
+                        else {
+                            int t = game.p.slotSkill[pickSlot];
+                            game.p.slotSkill[pickSlot] = game.p.slotSkill[k];
+                            game.p.slotSkill[k] = t;
+                            pickSlot = -1;
+                        }
+                        audio.play(Audio.CLICK, 0.6f);
+                        return;
+                    }
+                }
+            }
+            if (in(x, y, W / 2f - 110 * s, 364 * s, 200 * s, 34 * s)) {
                 pickSlot = -1;
                 screen = PLAY; audio.setDuck(false); audio.play(Audio.CLICK, 0.7f);
-            } else if (in(x, y, W / 2f + 130 * s, 350 * s, 220 * s, 40 * s)) {
+            } else if (in(x, y, W / 2f + 110 * s, 364 * s, 200 * s, 34 * s)) {
                 audio.play(Audio.CLICK, 0.7f);
                 pickSlot = -1;
                 toTitle();
@@ -519,7 +536,7 @@ public class GameView extends View {
     private void txt(Canvas c, String s, float x, float y, float size, int col, Paint.Align al, boolean bold) {
         pt.setStyle(Paint.Style.FILL);
         pt.setTextAlign(al);
-        pt.setTextSize(size * S * ((screen == PLAY || screen == PAUSE) ? 1.3f : 1f));
+        pt.setTextSize(size * S * (screen == PLAY ? 1.3f : 1f));
         pt.setFakeBoldText(bold);
         pt.setColor(Render.a(0xFF000000, 0.55f * ((col >>> 24) / 255f)));
         c.drawText(s, x + 1.2f * S, y + 1.2f * S, pt);
@@ -1015,50 +1032,183 @@ public class GameView extends View {
 
     // ---------------- pause / dead ----------------
 
+    private int pauseTab = 0, selItem = -1;
+    private static final String[] TABS = {"ПЕРСОНАЖ", "ІНВЕНТАР", "УМІННЯ"};
+
+    private float wv() { return W / S; }
+
+    private void statRow(Canvas c, float x, float y, float w, float h, int idx, String name, String val, int col) {
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(idx % 2 == 0 ? 0xFF1A2040 : 0xFF121830, 0.85f));
+        rf.set(x, y, x + w, y + h);
+        c.drawRoundRect(rf, 3 * S, 3 * S, pt);
+        txt(c, name, x + 8 * S, y + h * 0.72f, 11, 0xFFA8B4DC, Paint.Align.LEFT, false);
+        txt(c, val, x + w - 8 * S, y + h * 0.72f, 12, col, Paint.Align.RIGHT, true);
+    }
+
     private void drawPause(Canvas c) {
-        float s = S;
+        float s = S, Wv = wv();
         Player p = game.p;
         pt.setStyle(Paint.Style.FILL);
-        pt.setColor(0xCC060616);
+        pt.setColor(0xE6050614);
         c.drawRect(0, 0, W, H, pt);
-        txt(c, "ПАУЗА", W / 2f, 50 * s, 34, 0xFFFFFFFF, Paint.Align.CENTER, true);
-        // stats panel
-        panel(c, W / 2f - 170 * s, 190 * s, 300 * s, 200 * s, 0xFF35D6FF, 0.8f);
-        txt(c, Data.CLS_NAME[p.cls] + "  ·  РІВ. " + p.level, W / 2f - 170 * s, 110 * s, 15, Data.CLS_COL[p.cls], Paint.Align.CENTER, true);
+        // вкладки
+        for (int t = 0; t < 3; t++) {
+            float cx = W / 2f + (t - 1) * 132 * s;
+            boolean on = pauseTab == t;
+            panel(c, cx, 22 * s, 124 * s, 26 * s, on ? 0xFFFFD84A : 0xFF4A5278, on ? 0.95f : 0.6f);
+            txt(c, TABS[t], cx, 27 * s, 12, on ? 0xFFFFD84A : 0xFF8A93B8, Paint.Align.CENTER, true);
+        }
+        // головна панель
+        panel(c, W / 2f, 190 * s, Wv * s - 40 * s, 290 * s, 0xFF35D6FF, 0.92f);
+        float L = 32 * s;
+        if (pauseTab == 0) drawTabChar(c, p, L);
+        else if (pauseTab == 1) drawTabInv(c, p, L);
+        else drawTabSkills(c, p);
+        // кнопки
+        panel(c, W / 2f - 110 * s, 364 * s, 200 * s, 34 * s, 0xFF4DFFB0, 0.9f);
+        txt(c, "ПРОДОВЖИТИ", W / 2f - 110 * s, 370 * s, 15, 0xFF4DFFB0, Paint.Align.CENTER, true);
+        panel(c, W / 2f + 110 * s, 364 * s, 200 * s, 34 * s, 0xFFFF4D6D, 0.9f);
+        txt(c, "В МЕНЮ", W / 2f + 110 * s, 370 * s, 15, 0xFFFF4D6D, Paint.Align.CENTER, true);
+    }
+
+    private void drawTabChar(Canvas c, Player p, float L) {
+        float s = S, Wv = wv();
+        // портрет
+        panel(c, L + 100 * s, 190 * s, 190 * s, 262 * s, Data.CLS_COL[p.cls], 0.5f);
+        txt(c, Data.CLS_NAME[p.cls], L + 100 * s, 70 * s, 18, Data.CLS_COL[p.cls], Paint.Align.CENTER, true);
+        txt(c, "РІВЕНЬ " + p.level, L + 100 * s, 86 * s, 12, 0xFFFFD84A, Paint.Align.CENTER, true);
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(Render.a(Data.CLS_COL[p.cls], 0.10f));
+        c.drawCircle(L + 100 * s, 190 * s, 70 * s, pt);
+        c.save();
+        c.translate(L + 100 * s, 250 * s);
+        c.scale(2.4f * s, 2.4f * s);
+        Rig.draw(c, pt, 0f, 0f, 1, Rig.IDLE, p.color(), 1f, true, p.hairLen(), p.hairColor());
+        c.restore();
+        barG(2, c, L + 20 * s, 276 * s, 160 * s, 8 * s, p.xp / p.xpNeed(), 0xFFFFD84A);
+        txt(c, "ДОСВІД " + (int) p.xp + " / " + (int) p.xpNeed(), L + 100 * s, 298 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, false);
+        txt(c, "ЛОКАЦІЯ " + game.stage + " · " + clock(game.runTime) + " · ВБИТО " + game.totalKills, L + 100 * s, 316 * s, 9, 0xFF8A93B8, Paint.Align.CENTER, false);
+        // основні
+        float x1 = L + 214 * s;
+        txt(c, "ХАРАКТЕРИСТИКИ", x1, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
         String[] nm = {"СИЛА", "ЖИВУЧІСТЬ", "СПРИТНІСТЬ", "ДУХ", "УДАЧА"};
+        String[] sub = {"шкода атак", "HP і захист", "швидкість, ривки", "енергія", "крити, дроп"};
         float[] vv = {p.str, p.vit, p.agi, p.spi, p.effLuk()};
+        int[] cc = {0xFFFF7A2E, 0xFF4DFF88, 0xFF35D6FF, 0xFF6A7BFF, 0xFFFFD84A};
         for (int i = 0; i < 5; i++) {
-            txt(c, nm[i], W / 2f - 300 * s, (134 + i * 16) * s, 12, 0xFFB0B8D8, Paint.Align.LEFT, false);
-            txt(c, String.valueOf((int) vv[i]), W / 2f - 150 * s, (134 + i * 16) * s, 12, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            float y = (80 + i * 46) * s;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFF141A38, 0.9f));
+            rf.set(x1, y, x1 + 210 * s, y + 40 * s);
+            c.drawRoundRect(rf, 4 * s, 4 * s, pt);
+            pt.setColor(Render.a(cc[i], 0.9f));
+            rf.set(x1 + 5 * s, y + 5 * s, x1 + 35 * s, y + 35 * s);
+            c.drawRoundRect(rf, 4 * s, 4 * s, pt);
+            txt(c, nm[i].substring(0, 1), x1 + 20 * s, y + 27 * s, 16, 0xFF0A0A1C, Paint.Align.CENTER, true);
+            txt(c, nm[i], x1 + 44 * s, y + 17 * s, 11, 0xFFFFFFFF, Paint.Align.LEFT, true);
+            txt(c, sub[i], x1 + 44 * s, y + 31 * s, 9, 0xFF8A93B8, Paint.Align.LEFT, false);
+            txt(c, String.valueOf((int) vv[i]), x1 + 200 * s, y + 27 * s, 18, cc[i], Paint.Align.RIGHT, true);
         }
-        txt(c, "АТАКА +" + (int) ((p.dmgMul() - 1f) * 100f) + "%", W / 2f - 130 * s, 134 * s, 11, 0xFFFFB02E, Paint.Align.LEFT, false);
-        txt(c, "ЗАХИСТ " + (int) p.defense(), W / 2f - 130 * s, 150 * s, 11, 0xFF4DFF88, Paint.Align.LEFT, false);
-        txt(c, "КРИТ " + (int) (p.critChance() * 100f) + "%", W / 2f - 130 * s, 166 * s, 11, 0xFFFFF04D, Paint.Align.LEFT, false);
-        txt(c, "ДРОП x" + String.format("%.2f", p.dropMul()), W / 2f - 130 * s, 182 * s, 11, 0xFFFFD84A, Paint.Align.LEFT, false);
-        txt(c, "ШВИДК. +" + (int) ((p.moveSpeed() / 250f - 1f) * 100f) + "%", W / 2f - 130 * s, 198 * s, 11, 0xFF35D6FF, Paint.Align.LEFT, false);
-        // items panel
-        panel(c, W / 2f + 170 * s, 190 * s, 300 * s, 200 * s, 0xFFFFD84A, 0.8f);
-        txt(c, "ПРЕДМЕТИ", W / 2f + 170 * s, 110 * s, 15, 0xFFFFD84A, Paint.Align.CENTER, true);
+        // похідні
+        float x2 = x1 + 232 * s, w2 = Wv * s - 52 * s - x2;
+        txt(c, "ПОКАЗНИКИ", x2, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
+        String[][] rows = {
+            {"Здоров'я", (int) p.hp + " / " + (int) p.maxHp()},
+            {"Енергія", (int) p.ki + " / " + (int) p.maxKi()},
+            {"Регенерація HP", String.format("%.1f/с", p.hpRegen())},
+            {"Регенерація ki", String.format("%.1f/с", p.kiRegen())},
+            {"Шкода", "+" + (int) ((p.dmgMul() - 1f) * 100f) + "%"},
+            {"Шанс крита", (int) (p.critChance() * 100f) + "%"},
+            {"Шкода крита", "x" + String.format("%.2f", p.critMul())},
+            {"Захист", String.valueOf((int) p.defense())},
+            {"Швидкість руху", (int) p.moveSpeed() + ""},
+            {"Швидкість атак", "x" + String.format("%.2f", p.aspd())},
+            {"Ривок", p.dashMax + " заряди, " + String.format("%.1f", p.dashCd()) + " с"},
+            {"Удача дропу", "x" + String.format("%.2f", p.dropMul())}};
+        for (int i = 0; i < rows.length; i++)
+            statRow(c, x2, (80 + i * 20.5f) * s, w2, 19 * s, i, rows[i][0], rows[i][1], 0xFFFFFFFF);
+    }
+
+    private int[] ownedItems() {
+        Player p = game.p;
         int n = 0;
-        for (int i = 0; i < Data.ITEMS; i++) {
-            if (p.items[i] <= 0) continue;
-            float yy = (130 + n * 15) * s;
-            if (n < 10) txt(c, Data.ITEM_NAME[i] + " x" + p.items[i], W / 2f + 28 * s, yy, 11, Data.ITEM_COL[i], Paint.Align.LEFT, true);
-            n++;
+        int[] r = new int[Data.ITEMS];
+        for (int i = 0; i < Data.ITEMS; i++) if (p.items[i] > 0) r[n++] = i;
+        int[] o = new int[n];
+        System.arraycopy(r, 0, o, 0, n);
+        return o;
+    }
+
+    private void drawTabInv(Canvas c, Player p, float L) {
+        float s = S, Wv = wv();
+        int[] own = ownedItems();
+        txt(c, "ІНВЕНТАР", L, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
+        float gx = L, gy = 80 * s, cell = 38 * s, gap = 4 * s;
+        for (int i = 0; i < 40; i++) {
+            int cx = i % 10, cy = i / 10;
+            float x = gx + cx * (cell + gap), y = gy + cy * (cell + gap);
+            boolean has = i < own.length;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(0xFF141A38, 0.95f));
+            rf.set(x, y, x + cell, y + cell);
+            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
+            pt.setStyle(Paint.Style.STROKE);
+            pt.setStrokeWidth(1.5f * s);
+            int it = has ? own[i] : -1;
+            pt.setColor(has ? Render.a(Data.ITEM_COL[it], selItem == it ? 1f : 0.55f) : 0x33607098);
+            c.drawRoundRect(rf, 5 * s, 5 * s, pt);
+            if (has) {
+                pt.setStyle(Paint.Style.FILL);
+                pt.setColor(Render.a(Data.ITEM_COL[it], 0.25f));
+                c.drawRoundRect(rf, 5 * s, 5 * s, pt);
+                txt(c, Data.ITEM_NAME[it].substring(0, 1), x + cell / 2f, y + cell * 0.66f, 18, Data.ITEM_COL[it], Paint.Align.CENTER, true);
+                txt(c, "x" + p.items[it], x + cell - 3 * s, y + cell - 3 * s, 9, 0xFFFFFFFF, Paint.Align.RIGHT, true);
+            }
         }
-        if (n == 0) txt(c, "Поки порожньо", W / 2f + 170 * s, 190 * s, 12, 0xFF8890B0, Paint.Align.CENTER, false);
-        txt(c, "СЛОТИ УМІНЬ: торкнись двох, щоб поміняти", W / 2f, 298 * s, 10, 0xFF8890B0, Paint.Align.CENTER, false);
+        txt(c, "Предметів: " + own.length + " видів", L, 262 * s, 10, 0xFF8A93B8, Paint.Align.LEFT, false);
+        txt(c, "Камені для умінь: скоро", L, 278 * s, 10, 0xFF6A7BFF, Paint.Align.LEFT, false);
+        // опис
+        float dx = gx + 10 * (cell + gap) + 16 * s, dw = Wv * s - 52 * s - dx;
+        panel(c, dx + dw / 2f, 190 * s, dw, 262 * s, selItem >= 0 ? Data.ITEM_COL[selItem] : 0xFF4A5278, 0.6f);
+        if (selItem >= 0 && p.items[selItem] > 0) {
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(Data.ITEM_COL[selItem], 0.3f));
+            rf.set(dx + dw / 2f - 30 * s, 84 * s, dx + dw / 2f + 30 * s, 144 * s);
+            c.drawRoundRect(rf, 8 * s, 8 * s, pt);
+            txt(c, Data.ITEM_NAME[selItem].substring(0, 1), dx + dw / 2f, 130 * s, 36, Data.ITEM_COL[selItem], Paint.Align.CENTER, true);
+            txt(c, Data.ITEM_NAME[selItem], dx + dw / 2f, 166 * s, 14, Data.ITEM_COL[selItem], Paint.Align.CENTER, true);
+            txt(c, "Кількість: " + p.items[selItem], dx + dw / 2f, 184 * s, 11, 0xFFFFFFFF, Paint.Align.CENTER, false);
+            wrapText(c, Data.ITEM_DESC[selItem] + (p.items[selItem] > 1 ? " (за кожну копію)" : ""), dx + dw / 2f, 208 * s, dw - 24 * s, 11, 0xFFB8C4FF);
+        } else {
+            txt(c, own.length == 0 ? "Предметів ще немає" : "Торкнись предмета", dx + dw / 2f, 195 * s, 12, 0xFF8A93B8, Paint.Align.CENTER, false);
+        }
+    }
+
+    private void drawTabSkills(Canvas c, Player p) {
+        float s = S, Wv = wv();
+        txt(c, "УМІННЯ", 32 * s, 70 * s, 12, 0xFFFFD84A, Paint.Align.LEFT, true);
+        float gap = 10 * s, cw = (Wv * s - 64 * s - 3 * gap) / 4f;
         for (int k = 0; k < 4; k++) {
-            float cx = W / 2f + (k - 1.5f) * 78 * s;
+            float cx = 32 * s + cw / 2f + k * (cw + gap);
             int sk = p.slotSkill[k];
-            int colk = sk >= 0 ? Data.SKILL_COL[sk] : 0xFF3A3F5C;
-            panel(c, cx, 318 * s, 72 * s, 26 * s, pickSlot == k ? 0xFFFFFFFF : colk, 0.8f);
-            txt(c, (k + 1) + (sk >= 0 ? " " + Data.SKILL_NAME[p.cls][sk].split(" ")[0] : " ·"), cx, 322 * s, 9, colk, Paint.Align.CENTER, true);
+            int col = sk >= 0 ? Data.SKILL_COL[sk] : 0xFF3A3F5C;
+            panel(c, cx, 190 * s, cw, 230 * s, pickSlot == k ? 0xFFFFFFFF : col, 0.7f);
+            txt(c, "СЛОТ " + (k + 1), cx, 92 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, true);
+            if (sk < 0) {
+                txt(c, "порожньо", cx, 190 * s, 12, 0xFF5A6080, Paint.Align.CENTER, false);
+                continue;
+            }
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(col, 0.18f));
+            c.drawCircle(cx, 134 * s, 26 * s, pt);
+            glyphSkill(c, p.cls, sk, cx, 134 * s, 15 * s, col);
+            txt(c, Data.SKILL_NAME[p.cls][sk], cx, 178 * s, 12, col, Paint.Align.CENTER, true);
+            txt(c, "Рівень " + (p.skLvl[sk] + 1) + " / 5", cx, 194 * s, 10, 0xFFFFD84A, Paint.Align.CENTER, true);
+            wrapText(c, Data.SKILL_DESC[p.cls][sk], cx, 214 * s, cw - 16 * s, 10, 0xFFB8C4FF);
+            txt(c, "Енергія " + (int) p.skillCost(sk) + "   Перезар. " + String.format("%.1f", Data.SKILL_CD[p.cls][sk]) + " с", cx, 290 * s, 9, 0xFF8FD8FF, Paint.Align.CENTER, false);
         }
-        panel(c, W / 2f - 130 * s, 350 * s, 220 * s, 40 * s, 0xFF4DFFB0, 0.9f);
-        txt(c, "ПРОДОВЖИТИ", W / 2f - 130 * s, 356 * s, 18, 0xFF4DFFB0, Paint.Align.CENTER, true);
-        panel(c, W / 2f + 130 * s, 350 * s, 220 * s, 40 * s, 0xFFFF4D6D, 0.9f);
-        txt(c, "В МЕНЮ", W / 2f + 130 * s, 356 * s, 18, 0xFFFF4D6D, Paint.Align.CENTER, true);
+        txt(c, "Торкнись двох умінь, щоб поміняти місцями", W / 2f, 326 * s, 10, 0xFF8A93B8, Paint.Align.CENTER, false);
     }
 
     private void drawDead(Canvas c) {
