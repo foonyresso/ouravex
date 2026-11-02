@@ -170,7 +170,10 @@ public final class Audio {
 
     // ---------------- public API ----------------
 
+    public volatile float musicVol = 1f, sfxVol = 1f;
+
     public void play(int id, float vol) {
+        vol *= sfxVol;
         if (muted || id < 0 || id >= COUNT || !running) return;
         synchronized (lock) {
             int slot = -1;
@@ -299,7 +302,7 @@ public final class Audio {
             bar = 0;
         }
         float out = 0f;
-        float tg = musicTarget * (mode == MUS_TITLE ? 0.5f : 0.55f);
+        float tg = musicTarget * musicVol * (mode == MUS_TITLE ? 0.5f : 0.55f);
         musGain += (tg - musGain) * 0.0005f;
 
         if (mode != MUS_OFF) {

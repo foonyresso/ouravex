@@ -11,7 +11,7 @@ import android.view.View;
 
 /** Touch input, screens (title / pause / level-up / death) and HUD. */
 public class GameView extends View {
-    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4, BEST = 5;
+    private static final int TITLE = 0, PLAY = 1, PAUSE = 2, DEAD = 3, INTRO = 4, BEST = 5, SELECT = 6, SETTINGS = 7, SPLASH = 8;
     private int bestTab = 0, bestSel = -1;
     private float introT;
     private static final int B_L = 0, B_R = 1, B_ATK = 2, B_SK = 3, B_INT = 7, B_PAUSE = 8, B_ATK2 = 9, NB = 10;
@@ -25,7 +25,11 @@ public class GameView extends View {
     private final float[] prevPose = new float[Rig.N];
     private final SharedPreferences prefs;
 
-    private int screen = TITLE;
+    private int screen = SPLASH;
+    private float splashT, splashBar;
+    private boolean splashDone, resetArm;
+    private int lastSavedStage = -1;
+    private boolean isMenu() { return screen == TITLE || screen == SELECT || screen == SETTINGS || screen == BEST || screen == SPLASH; }
     private int selCls = 0, selDiff = 1, lastCls = 0, lastDiff = 1;
     private int W, H;
     private float S = 1f;
@@ -50,6 +54,9 @@ public class GameView extends View {
         bestStage = prefs.getInt("bestStage", 0);
         bestKills = prefs.getInt("bestKills", 0);
         Codex.init(prefs);
+        audio.musicVol = prefs.getInt("musV", 10) / 10f;
+        audio.sfxVol = prefs.getInt("sfxV", 10) / 10f;
+        Fx.shakeOn = prefs.getBoolean("shake", true);
         setKeepScreenOn(true);
         for (int i = 0; i < ptrBtn.length; i++) ptrBtn[i] = -1;
         for (int i = 0; i < NB; i++) { bUpT[i] = -9f; bDur[i] = 9f; }
@@ -62,7 +69,7 @@ public class GameView extends View {
     public void onResumeGame() {
         audio.start();
         Updater.check(getContext());
-        audio.setMusic(screen == TITLE ? Audio.MUS_TITLE : (game.boss != null ? Audio.MUS_BOSS : Audio.MUS_STAGE));
+        audio.setMusic(isMenu() ? Audio.MUS_TITLE : (game.boss != null ? Audio.MUS_BOSS : Audio.MUS_STAGE));
         lastNanos = 0;
     }
 
@@ -71,6 +78,7 @@ public class GameView extends View {
             screen = PAUSE;
             audio.setDuck(true);
         }
+        if (screen == PLAY || screen == PAUSE) SaveGame.save(prefs, game);
         resetInput();
         audio.setCharging(false, 0f);
         audio.stop();
@@ -80,11 +88,12 @@ public class GameView extends View {
         if (screen == PLAY && !game.levelUpPending) { screen = PAUSE; clearSel(); audio.setDuck(true); resetInput(); return true; }
         if (screen == PAUSE) { if (cfKind != 0) { cfKind = 0; return true; } if (pickerOpen) { pickerOpen = false; return true; } screen = PLAY; audio.setDuck(false); return true; }
         if (screen == DEAD) { toTitle(); return true; }
-        if (screen == BEST) { screen = TITLE; return true; }
+        if (screen == BEST || screen == SELECT || screen == SETTINGS) { screen = TITLE; return true; }
         return false;
     }
 
     private void toTitle() {
+        lastSavedStage = -1;
         screen = TITLE;
         audio.setDuck(false);
         audio.setMusic(Audio.MUS_TITLE);
@@ -93,6 +102,7 @@ public class GameView extends View {
     }
 
     private void startRun() {
+        lastSavedStage = -1;
         lastCls = selCls;
         lastDiff = selDiff;
         game.newRun(selCls, selDiff);
@@ -207,6 +217,7 @@ public class GameView extends View {
         } else if (b == B_PAUSE) {
             screen = PAUSE;
             clearSel();
+            SaveGame.save(prefs, game);
             audio.setDuck(true);
             audio.play(Audio.CLICK, 0.6f);
             resetInput();
@@ -259,8 +270,28 @@ public class GameView extends View {
     private void menuTap(float x, float y) {
         float s = S;
         if (screen == BEST) { bestTap(x, y); return; }
-        if (screen == TITLE) {
-            if (in(x, y, W - 70 * s, 26 * s, 120 * s, 30 * s)) { screen = BEST; bestSel = -1; audio.play(Audio.CLICK, 0.6f); return; }
+        if (screen == SPLASH) {
+            boolean apk = Updater.state == Updater.AVAILABLE && Updater.isApk();
+            if (apk && in(x, y, W / 2f, 300 * s, 260 * s, 34 * s)) { Updater.start(getContext()); return; }
+            if (splashBar > 0.99f && Updater.state != Updater.DOWNLOADING && Updater.state != Updater.INSTALLING
+                    && in(x, y, W / 2f, 350 * s, 220 * s, 40 * s)) { screen = TITLE; audio.play(Audio.CLICK, 0.7f); }
+        } else if (screen == TITLE) {
+            boolean has = SaveGame.exists(prefs);
+            for (int i = 0; i < 4; i++) {
+                if (!in(x, y, 150 * s, (150 + i * 46) * s, 236 * s, 38 * s)) continue;
+                audio.play(Audio.CLICK, 0.7f);
+                if (i == 0) {
+                    if (has && SaveGame.load(prefs, game)) {
+                        lastCls = game.p.cls; lastDiff = game.diff; selCls = lastCls; selDiff = lastDiff;
+                        lastSavedStage = game.stage;
+                        beginPlay();
+                    }
+                } else if (i == 1) { screen = SELECT; game.newRun(selCls, selDiff); }
+                else if (i == 2) { screen = BEST; bestSel = -1; }
+                else { screen = SETTINGS; resetArm = false; }
+            }
+        } else if (screen == SELECT) {
+            if (in(x, y, 70 * s, 26 * s, 110 * s, 30 * s)) { screen = TITLE; audio.play(Audio.CLICK, 0.6f); return; }
             for (int i = 0; i < 2; i++) {
                 if (in(x, y, W / 2f + (i == 0 ? -118 : 118) * s, 160 * s, 220 * s, 150 * s)) {
                     selCls = i; audio.play(Audio.CLICK, 0.7f);
@@ -272,10 +303,31 @@ public class GameView extends View {
                     selDiff = i; audio.play(Audio.CLICK, 0.7f);
                 }
             }
-            if (Updater.state == Updater.AVAILABLE || Updater.state == Updater.ERROR) {
-                if (in(x, y, 150 * s, 26 * s, 270 * s, 36 * s)) { Updater.start(getContext()); return; }
-            }
             if (in(x, y, W / 2f, 332 * s, 240 * s, 48 * s)) startRun();
+        } else if (screen == SETTINGS) {
+            if (in(x, y, 70 * s, 26 * s, 110 * s, 30 * s)) { screen = TITLE; audio.play(Audio.CLICK, 0.6f); return; }
+            float cx = W / 2f;
+            for (int r = 0; r < 2; r++) {
+                float cy = (110 + r * 56) * s;
+                int v = prefs.getInt(r == 0 ? "musV" : "sfxV", 10);
+                if (in(x, y, cx + 110 * s, cy, 40 * s, 34 * s)) v = Math.max(0, v - 1);
+                else if (in(x, y, cx + 250 * s, cy, 40 * s, 34 * s)) v = Math.min(10, v + 1);
+                else continue;
+                prefs.edit().putInt(r == 0 ? "musV" : "sfxV", v).apply();
+                audio.musicVol = prefs.getInt("musV", 10) / 10f;
+                audio.sfxVol = prefs.getInt("sfxV", 10) / 10f;
+                audio.play(Audio.CLICK, 0.8f);
+            }
+            if (in(x, y, cx + 180 * s, 222 * s, 150 * s, 34 * s)) {
+                Fx.shakeOn = !Fx.shakeOn;
+                prefs.edit().putBoolean("shake", Fx.shakeOn).apply();
+                audio.play(Audio.CLICK, 0.7f);
+            }
+            if (in(x, y, cx, 296 * s, 300 * s, 34 * s)) {
+                if (!resetArm) resetArm = true;
+                else { SaveGame.clear(prefs); resetArm = false; }
+                audio.play(Audio.CLICK, 0.7f);
+            }
         } else if (screen == INTRO) {
             if (introT > 0.6f) beginPlay();
         } else if (screen == DEAD) {
@@ -328,7 +380,9 @@ public class GameView extends View {
                 game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM);
                 game.update(dt);
                 if (game.levelUpPending) lvlT = 0f;
+                if (game.stage != lastSavedStage && !game.over) { lastSavedStage = game.stage; SaveGame.save(prefs, game); }
                 if (game.over) {
+                    SaveGame.clear(prefs);
                     screen = DEAD;
                     deadT = 0f;
                     if (game.stage > bestStage || (game.stage == bestStage && game.totalKills > bestKills)) {
@@ -341,7 +395,7 @@ public class GameView extends View {
         } else if (screen == DEAD) {
             deadT += dt;
         }
-        if (screen == TITLE) game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM);
+        if (isMenu()) { game.viewW = W / (S * Game.ZOOM); game.viewH = H / (S * Game.ZOOM); }
 
         if (screen == INTRO) {
             introT += dt;
@@ -352,12 +406,21 @@ public class GameView extends View {
         }
 
         // ---- draw ----
+        if (screen == SPLASH) {
+            splashT += dt;
+            drawSplash(c, dt);
+            postInvalidateOnAnimation();
+            return;
+        }
         render.draw(c, game, W, H, S, uiT);
         if (screen == BEST) {
             drawBest(c);
         } else if (screen == TITLE) {
             drawTitle(c);
-            drawUpdate(c);
+        } else if (screen == SELECT) {
+            drawSelect(c);
+        } else if (screen == SETTINGS) {
+            drawSettings(c);
         } else {
             drawHud(c);
             if (screen == PLAY && game.levelUpPending) drawLevelUp(c);
@@ -761,15 +824,169 @@ public class GameView extends View {
         if (in(x, y, W / 2f, 376 * s, 160 * s, 28 * s)) { screen = TITLE; audio.play(Audio.CLICK, 0.6f); }
     }
 
-    private void drawTitle(Canvas c) {
+    private String ver() { return "1." + System.getProperty("ouravex.gamecode", "0"); }
+
+    private void streaks(Canvas c, float alpha) {
         pt.setStyle(Paint.Style.FILL);
-        pt.setColor(0x99060616);
+        for (int i = 0; i < 36; i++) {
+            float sp = 40f + (i * 37 % 90);
+            float x = ((i * 211.7f + uiT * sp) % (W + 200f * S)) - 100f * S;
+            float y = ((i * 97.3f) % H);
+            float len = (30f + (i * 13 % 70)) * S;
+            int col = i % 3 == 0 ? 0xFF35D6FF : (i % 3 == 1 ? 0xFFB06BFF : 0xFFFF4D8D);
+            pt.setColor(Render.a(col, alpha * (0.25f + 0.25f * (i % 4) / 3f)));
+            c.drawRect(x, y, x + len, y + 1.6f * S, pt);
+        }
+    }
+
+    private void drawSplash(Canvas c, float dt) {
+        float s = S;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xFF050614);
+        c.drawRect(0, 0, W, H, pt);
+        float pulse = 0.5f + 0.5f * (float) Math.sin(uiT * 2f);
+        pt.setColor(Render.a(0xFF35D6FF, 0.07f + 0.03f * pulse));
+        c.drawCircle(W / 2f, 150 * s, 190 * s, pt);
+        pt.setColor(Render.a(0xFFB06BFF, 0.06f));
+        c.drawCircle(W / 2f + 90 * s, 170 * s, 130 * s, pt);
+        streaks(c, 1f);
+        float rr = (splashT * 160f) % 260f;
+        pt.setStyle(Paint.Style.STROKE);
+        pt.setStrokeWidth(2f * s);
+        pt.setColor(Render.a(0xFF35D6FF, Math.max(0f, 0.35f - rr / 800f)));
+        c.drawCircle(W / 2f, 140 * s, rr * s, pt);
+        String name = "OURAVEX";
+        for (int i = 0; i < name.length(); i++) {
+            float a = Math.max(0f, Math.min(1f, (splashT - 0.12f * i) * 3f));
+            float lx = W / 2f + (i - 3) * 46 * s, ly = (150 + (1f - a) * 24f) * s;
+            txt(c, name.substring(i, i + 1), lx, ly, 62, Render.a(0xFF35D6FF, a * (0.35f + 0.1f * pulse)), Paint.Align.CENTER, true);
+            txt(c, name.substring(i, i + 1), lx, ly - 2 * s, 62, Render.a(0xFFFFFFFF, a), Paint.Align.CENTER, true);
+        }
+        txt(c, "Бий. Телепортуйся. Виживай.", W / 2f, 186 * s, 13, Render.a(0xFF9AB0D0, Math.min(1f, Math.max(0f, splashT - 1f))), Paint.Align.CENTER, false);
+
+        int st = Updater.state;
+        boolean fin = Updater.finished || splashT > 9f;
+        float target;
+        String status;
+        if (st == Updater.AVAILABLE) {
+            if (!Updater.isApk()) { Updater.start(getContext()); }
+            target = 0.6f;
+            status = "Знайдено оновлення " + Updater.name;
+        } else if (st == Updater.DOWNLOADING) {
+            target = 0.6f + 0.4f * Updater.progress;
+            status = "Завантаження оновлення " + (int) (Updater.progress * 100) + "%";
+        } else if (st == Updater.INSTALLING) {
+            target = 1f;
+            status = Updater.isApk() ? "Встановлення…" : "Перезапуск гри…";
+        } else if (st == Updater.ERROR) {
+            target = 1f;
+            status = Updater.msg;
+        } else if (!fin) {
+            target = Math.min(0.55f, splashT * 0.15f);
+            status = "Перевірка оновлень…";
+        } else {
+            target = 1f;
+            status = Updater.offline ? "Немає інтернету. Запуск без оновлень" : "Оновлень немає · версія " + ver();
+        }
+        if (splashT < 2.2f) target = Math.min(target, splashT / 2.2f * 0.9f);
+        splashBar += (target - splashBar) * Math.min(1f, dt * 4f);
+        float bw = 300f, by = 330f;
+        boolean apk = st == Updater.AVAILABLE && Updater.isApk();
+        txt(c, apk ? "Потрібен новий лаунчер гри" : status, W / 2f, 318 * s, 11, st == Updater.ERROR ? 0xFFFF6A7A : 0xFF9AB0D0, Paint.Align.CENTER, false);
+        boolean ready = splashBar > 0.99f && st != Updater.DOWNLOADING && st != Updater.INSTALLING;
+        if (!ready || apk) {
+            barG(3, c, W / 2f - bw / 2f * s, by * s + 8 * s, bw * s, 8 * s, Math.max(0.02f, splashBar), st == Updater.DOWNLOADING ? 0xFF4DFFB0 : 0xFF35D6FF);
+        }
+        if (apk) button(c, W / 2f / s, 300f, 260f, 34f, "ВСТАНОВИТИ ОНОВЛЕННЯ", 0xFFFFD84A, true);
+        if (ready) {
+            float pu = 0.9f + 0.1f * pulse;
+            panel(c, W / 2f, 350 * s, 220 * s, 40 * s, 0xFF4DFFB0, 0.9f);
+            txt(c, "ГРАТИ", W / 2f, 358 * s, 20 * pu, 0xFF4DFFB0, Paint.Align.CENTER, true);
+        }
+        txt(c, ver(), W - 12 * s, H - 8 * s, 9, 0xFF5A6690, Paint.Align.RIGHT, false);
+    }
+
+    private void drawTitle(Canvas c) {
+        float s = S;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xB8050614);
+        c.drawRect(0, 0, W, H, pt);
+        pt.setColor(0x66000008);
+        c.drawRect(0, 0, 300 * s, H, pt);
+        streaks(c, 0.7f);
+        float pulse = 0.5f + 0.5f * (float) Math.sin(uiT * 2f);
+        txt(c, "OURAVEX", 24 * s, 66 * s, 44, Render.a(0xFF35D6FF, 0.35f + 0.1f * pulse), Paint.Align.LEFT, true);
+        txt(c, "OURAVEX", 24 * s, 64 * s, 44, 0xFFFFFFFF, Paint.Align.LEFT, true);
+        txt(c, "Бий. Телепортуйся. Виживай.", 26 * s, 86 * s, 11, 0xFF9AB0D0, Paint.Align.LEFT, false);
+        boolean has = SaveGame.exists(prefs);
+        String[] lb = {"ПРОДОВЖИТИ", "НОВА ГРА", "БЕСТІАРІЙ", "НАЛАШТУВАННЯ"};
+        int[] cl = {0xFF4DFFB0, 0xFFFFD84A, 0xFFB06BFF, 0xFF35D6FF};
+        for (int i = 0; i < 4; i++) {
+            boolean off = i == 0 && !has;
+            int col = off ? 0xFF3A3F5C : cl[i];
+            panel(c, 150 * s, (150 + i * 46) * s, 236 * s, 38 * s, col, off ? 0.5f : 0.85f);
+            txt(c, lb[i], 150 * s, (150 + i * 46 + (i == 0 && has ? -1 : 5)) * s, 16, off ? 0xFF5A6080 : col, Paint.Align.CENTER, true);
+            if (i == 0 && has) txt(c, SaveGame.summary(prefs), 150 * s, (150 + 12) * s, 8, 0xFF9AB0D0, Paint.Align.CENTER, false);
+        }
+        for (int i = 0; i < 2; i++) {
+            float cx = wv() * s - (200 - i * 110) * s, gy = 330 * s;
+            pt.setStyle(Paint.Style.FILL);
+            pt.setColor(Render.a(Data.CLS_COL[i], 0.10f + 0.04f * pulse));
+            c.drawCircle(cx, gy - 110 * s, 96 * s, pt);
+            float[] pose = prevPose;
+            Rig.copy(pose, Rig.IDLE);
+            float b = (float) Math.sin(uiT * 3.5f + i);
+            pose[1] += b * 1.2f; pose[6] += b; pose[8] += b;
+            if (i == 1) { pose[5] = 44; pose[6] = -60; pose[7] = 38; pose[8] = -56; }
+            c.save();
+            c.translate(cx, gy);
+            c.scale(s * 1.9f, s * 1.9f);
+            Rig.draw(c, pt, 0, 0, i == 0 ? 1 : -1, pose, Data.CLS_COL[i], 1f, true, i == 0 ? 2f : 0f, Data.CLS_HAIR[i]);
+            c.restore();
+        }
+        if (bestStage > 0) txt(c, "Рекорд: локація " + bestStage + " · вбито " + bestKills, 24 * s, 384 * s, 10, 0xFF8890B0, Paint.Align.LEFT, false);
+        txt(c, "Версія " + ver(), W - 12 * s, H - 8 * s, 9, 0xFF5A6690, Paint.Align.RIGHT, false);
+    }
+
+    private void drawSettings(Canvas c) {
+        float s = S, cx = W / 2f;
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xE6050614);
+        c.drawRect(0, 0, W, H, pt);
+        streaks(c, 0.5f);
+        button(c, 70f, 26f, 110f, 30f, "‹ НАЗАД", 0xFFB8C4FF, true);
+        txt(c, "НАЛАШТУВАННЯ", cx, 46 * s, 24, 0xFFFFFFFF, Paint.Align.CENTER, true);
+        String[] nm = {"МУЗИКА", "ЗВУКИ"};
+        for (int r = 0; r < 2; r++) {
+            float cy = (110 + r * 56) * s;
+            int v = prefs.getInt(r == 0 ? "musV" : "sfxV", 10);
+            panel(c, cx, cy, 560 * s, 44 * s, 0xFF35D6FF, 0.6f);
+            txt(c, nm[r], cx - 260 * s, cy + 5 * s, 14, 0xFFFFFFFF, Paint.Align.LEFT, true);
+            button(c, cx / s + 110f, cy / s, 40f, 30f, "−", 0xFF35D6FF, true);
+            button(c, cx / s + 250f, cy / s, 40f, 30f, "+", 0xFF35D6FF, true);
+            for (int k = 0; k < 10; k++) {
+                pt.setStyle(Paint.Style.FILL);
+                pt.setColor(k < v ? Render.a(0xFF4DFFB0, 0.9f) : 0x33607098);
+                rf.set(cx + (135 + k * 11) * s, cy - 9 * s, cx + (143 + k * 11) * s, cy + 9 * s);
+                c.drawRoundRect(rf, 2 * s, 2 * s, pt);
+            }
+        }
+        panel(c, cx, 222 * s, 560 * s, 44 * s, 0xFF35D6FF, 0.6f);
+        txt(c, "ТРЯСКА ЕКРАНА", cx - 260 * s, 227 * s, 14, 0xFFFFFFFF, Paint.Align.LEFT, true);
+        button(c, cx / s + 180f, 222f, 150f, 34f, Fx.shakeOn ? "УВІМКНЕНО" : "ВИМКНЕНО", Fx.shakeOn ? 0xFF4DFFB0 : 0xFFFF4D6D, true);
+        boolean has = SaveGame.exists(prefs);
+        button(c, cx / s, 296f, 300f, 34f, resetArm ? "ТОЧНО? ТОРКНИСЬ ЩЕ РАЗ" : (has ? "ВИДАЛИТИ ЗБЕРЕЖЕННЯ" : "ЗБЕРЕЖЕНЬ НЕМАЄ"), has ? 0xFFFF4D6D : 0xFF5A6080, has);
+        txt(c, "Версія " + ver(), cx, 372 * s, 10, 0xFF5A6690, Paint.Align.CENTER, false);
+    }
+
+    private void drawSelect(Canvas c) {
+        pt.setStyle(Paint.Style.FILL);
+        pt.setColor(0xCC060616);
         c.drawRect(0, 0, W, H, pt);
         float s = S;
         float pulse = 0.5f + 0.5f * (float) Math.sin(uiT * 2f);
-        txt(c, "OURAVEX", W / 2f, 62 * s, 58, Render.a(0xFF35D6FF, 0.35f + 0.1f * pulse), Paint.Align.CENTER, true);
-        txt(c, "OURAVEX", W / 2f, 60 * s, 58, 0xFFFFFFFF, Paint.Align.CENTER, true);
-        txt(c, "Бий. Телепортуйся. Виживай.", W / 2f, 84 * s, 14, 0xFF9AB0D0, Paint.Align.CENTER, false);
+        button(c, 70f, 26f, 110f, 30f, "‹ НАЗАД", 0xFFB8C4FF, true);
+        txt(c, "ОБЕРИ ГЕРОЯ", W / 2f, 46 * s, 24, 0xFFFFFFFF, Paint.Align.CENTER, true);
         for (int i = 0; i < 2; i++) {
             float cx = W / 2f + (i == 0 ? -118 : 118) * s, cy = 160 * s;
             boolean sel = selCls == i;
@@ -805,11 +1022,7 @@ public class GameView extends View {
         float pu = 0.85f + 0.15f * pulse;
         panel(c, W / 2f, 332 * s, 240 * s, 48 * s, 0xFF4DFFB0, 0.9f);
         txt(c, "ПОЧАТИ", W / 2f, 340 * s, 22 * pu, 0xFF4DFFB0, Paint.Align.CENTER, true);
-        panel(c, W - 70 * s, 26 * s, 120 * s, 30 * s, 0xFFB06BFF, 0.8f);
-        txt(c, "БЕСТІАРІЙ", W - 70 * s, 31 * s, 12, 0xFFB06BFF, Paint.Align.CENTER, true);
-        if (bestStage > 0) {
-            txt(c, "Рекорд: локація " + bestStage + "  ·  вбито " + bestKills, W / 2f, 384 * s, 12, 0xFF8890B0, Paint.Align.CENTER, false);
-        }
+        if (SaveGame.exists(prefs)) txt(c, "Поточне збереження буде замінено", W / 2f, 372 * s, 10, 0xFF8890B0, Paint.Align.CENTER, false);
     }
 
     // ---------------- HUD ----------------

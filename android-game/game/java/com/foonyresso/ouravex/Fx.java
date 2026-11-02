@@ -153,7 +153,9 @@ public final class Fx {
         ghair[i] = hair; ghc[i] = hairColor; glife[i] = lifeT; gmax[i] = lifeT;
     }
 
-    public void shake(float amt) { trauma = Math.min(1f, trauma + amt); }
+    public static boolean shakeOn = true;
+
+    public void shake(float amt) { if (!shakeOn) return; trauma = Math.min(1f, trauma + amt); }
 
     public void screenFlash(int color, float a) { flashColor = color; flashA = Math.max(flashA, a); }
 

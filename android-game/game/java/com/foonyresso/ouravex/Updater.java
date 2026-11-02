@@ -27,6 +27,8 @@ public final class Updater {
 
     public static volatile int state = IDLE;
     public static volatile float progress;
+    public static volatile boolean finished, offline;
+    public static boolean isApk() { return apkMode; }
     public static volatile String name = "", msg = "";
     private static boolean checked, regd;
 
@@ -64,8 +66,10 @@ public final class Updater {
                         name = j.optString("name", "");
                         state = AVAILABLE;
                     }
+                    finished = true;
                 } catch (Exception e) {
-                    checked = false; // спробуємо знову при наступному вході
+                    offline = true;
+                    finished = true;
                 }
             }
         }).start();
